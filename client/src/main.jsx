@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import "./index.css";
+import GenerateQR from "./pages/GenerateQR";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -15,6 +16,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/generate-qr" element={<GenerateQR />} />
+        
       </Routes>
     </Router>
   </React.StrictMode>
