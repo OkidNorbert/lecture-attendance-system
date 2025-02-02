@@ -7,6 +7,8 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import "./index.css";
 import GenerateQR from "./pages/GenerateQR";
+import ScanQR from "./pages/ScanQR";
+
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -17,6 +19,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/generate-qr" element={<GenerateQR />} />
+        <Route path="/scan-qr" element={<ScanQR />} />
         
       </Routes>
     </Router>

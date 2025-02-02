@@ -3,6 +3,7 @@ require("dotenv").config(); // Load environment variables
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const attendanceRoutes = require("./routes/attendance");
 
 // Import routes
 const authRoutes = require("./routes/auth");
@@ -12,6 +13,9 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cors());
+
+//attendance
+app.use("/api/attendance", attendanceRoutes);
 
 // Default route
 app.get("/", (req, res) => {
