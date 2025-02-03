@@ -8,6 +8,8 @@ import Dashboard from "./pages/Dashboard";
 import "./index.css";
 import GenerateQR from "./pages/GenerateQR";
 import ScanQR from "./pages/ScanQR";
+import AttendanceHistory from "./pages/AttendanceHistory";
+import LecturerDashboard from "./pages/LecturerDashboard";
 
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -20,7 +22,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/generate-qr" element={<GenerateQR />} />
         <Route path="/scan-qr" element={<ScanQR />} />
-        
+        <Route path="/attendance-history" element={<AttendanceHistory />} />
+        <Route path="/lecturer-dashboard" element={<LecturerDashboard />} />
+
+
       </Routes>
     </Router>
   </React.StrictMode>
