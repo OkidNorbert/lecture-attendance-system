@@ -3,24 +3,36 @@ const authMiddleware = require("../middleware/auth");
 const Attendance = require("../models/Attendance");
 const router = express.Router();
 
-// ✅ Mark Attendance (Only for Students)
+// ✅ Mark Attendance with GPS Validation
 router.post("/mark", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "student") {
       return res.status(403).json({ msg: "Access denied. Only students can mark attendance." });
     }
 
-    const { qrData } = req.body;
-    if (!qrData) return res.status(400).json({ msg: "No QR data found" });
+    const { qrData, studentLat, studentLon } = req.body;
+    if (!qrData || studentLat === undefined || studentLon === undefined) {
+      return res.status(400).json({ msg: "QR data and location required" });
+    }
 
-    // Extract QR Data (course, date, session)
-    const { course, date, sessionId } = JSON.parse(qrData);
+    const { course, date, sessionId, expiryTime, latitude, longitude, radius } = JSON.parse(qrData);
 
-    // Prevent duplicate attendance
+    // ✅ Check if QR code is expired
+    if (Date.now() > expiryTime) {
+      return res.status(400).json({ msg: "QR Code has expired!" });
+    }
+
+    // ✅ Check if student is within the allowed radius
+    const distance = getDistance(latitude, longitude, studentLat, studentLon);
+    if (distance > radius) {
+      return res.status(400).json({ msg: "You are not in the classroom!" });
+    }
+
+    // ✅ Prevent duplicate attendance
     const existingRecord = await Attendance.findOne({ studentId: req.user.id, sessionId });
     if (existingRecord) return res.status(400).json({ msg: "Attendance already marked!" });
 
-    // Save Attendance Record
+    // ✅ Save Attendance Record
     const attendance = new Attendance({
       studentId: req.user.id,
       name: req.user.name,
@@ -36,7 +48,18 @@ router.post("/mark", authMiddleware, async (req, res) => {
   }
 });
 
-module.exports = router;
+// ✅ Helper function to calculate distance between two coordinates
+function getDistance(lat1, lon1, lat2, lon2) {
+  const toRad = (angle) => (Math.PI / 180) * angle;
+  const R = 6371e3; // Earth’s radius in meters
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in meters
+}
 
 // ✅ Student Attendance History
 router.get("/history", authMiddleware, async (req, res) => {
