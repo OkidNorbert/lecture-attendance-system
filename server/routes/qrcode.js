@@ -1,9 +1,10 @@
 const express = require("express");
 const QRCode = require("qrcode");
 const authMiddleware = require("../middleware/auth");
+const Session = require("../models/Session"); // Ensure this model exists
 const router = express.Router();
 
-// ✅ Generate QR Code with Required Fields
+// ✅ Generate QR Code (Only for Lecturers)
 router.post("/generate", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "lecturer") {
@@ -12,28 +13,26 @@ router.post("/generate", authMiddleware, async (req, res) => {
 
     const { course, sessionId, duration, latitude, longitude, radius } = req.body;
 
-    // ✅ Validate Required Fields
     if (!course || !sessionId || !duration || !latitude || !longitude || !radius) {
       return res.status(400).json({ msg: "Missing required fields" });
     }
 
-    const expiryTime = Date.now() + duration * 60 * 1000; // Expiry timestamp
+    const expiryTime = Date.now() + duration * 60 * 1000;
 
-    // ✅ Store Only Essential Data
-    const qrData = JSON.stringify({ 
-      c: course, 
-      s: sessionId, 
-      e: expiryTime, 
-      lat: latitude, 
-      lon: longitude, 
-      r: radius 
-    });
+    // ✅ Store session in database
+    const session = new Session({ sessionId, course, expiryTime, latitude, longitude, radius });
+    await session.save();
+
+    // ✅ Store only sessionId in QR Code
+    const qrData = JSON.stringify({ s: sessionId });
+    console.log("✅ QR Code Data:", qrData);
 
     // ✅ Generate QR Code
     const qrCodeUrl = await QRCode.toDataURL(qrData, { errorCorrectionLevel: "L" });
 
     res.json({ msg: "QR Code generated successfully", qrCodeUrl, expiryTime });
   } catch (err) {
+    console.error("❌ Error in QR Code Generation:", err.message);
     res.status(500).json({ msg: "Server error", error: err.message });
   }
 });

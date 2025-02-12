@@ -44,13 +44,6 @@ const GenerateQR = () => {
       return;
     }
 
-    // ✅ Check if all fields are filled before sending request
-    if (!formData.course || !formData.sessionId || !formData.duration || 
-        !formData.latitude || !formData.longitude || !formData.radius) {
-      setError("Please fill all fields and allow location access.");
-      return;
-    }
-
     try {
       const res = await axios.post("http://localhost:5000/api/qrcode/generate", formData, {
         headers: { Authorization: `Bearer ${token}` },
@@ -61,7 +54,7 @@ const GenerateQR = () => {
       }
 
       setQrCodeUrl(res.data.qrCodeUrl);
-      setError(null); // Clear any previous errors
+      setError(null);
     } catch (err) {
       setError(err.response?.data?.msg || "Error generating QR Code");
     }
