@@ -1,7 +1,7 @@
 const express = require("express");
-const QRCode = require("qrcode");
+const qr = require("qr-image");
 const authMiddleware = require("../middleware/auth");
-const Session = require("../models/Session"); // Ensure this model exists
+const Session = require("../models/Session"); 
 const router = express.Router();
 
 // ✅ Generate QR Code (Only for Lecturers)
@@ -19,18 +19,21 @@ router.post("/generate", authMiddleware, async (req, res) => {
 
     const expiryTime = Date.now() + duration * 60 * 1000;
 
-    // ✅ Store session in database
-    const session = new Session({ sessionId, course, expiryTime, latitude, longitude, radius });
-    await session.save();
+    // ✅ Store session in database (update if exists)
+    await Session.findOneAndUpdate(
+      { sessionId },
+      { course, expiryTime, latitude, longitude, radius },
+      { new: true, upsert: true }
+    );
 
-    // ✅ Store only sessionId in QR Code
+    // ✅ Generate a modern QR Code (Use a JSON object)
     const qrData = JSON.stringify({ s: sessionId });
     console.log("✅ QR Code Data:", qrData);
 
-    // ✅ Generate QR Code
-    const qrCodeUrl = await QRCode.toDataURL(qrData, { errorCorrectionLevel: "L" });
+    const qrCodeImage = qr.imageSync(qrData, { type: "png" });
+    const qrCodeBase64 = `data:image/png;base64,${qrCodeImage.toString("base64")}`;
 
-    res.json({ msg: "QR Code generated successfully", qrCodeUrl, expiryTime });
+    res.json({ msg: "QR Code generated successfully", qrCodeUrl: qrCodeBase64, expiryTime });
   } catch (err) {
     console.error("❌ Error in QR Code Generation:", err.message);
     res.status(500).json({ msg: "Server error", error: err.message });
