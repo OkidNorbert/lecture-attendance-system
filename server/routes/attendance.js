@@ -63,11 +63,11 @@ function getDistance(lat1, lon1, lat2, lon2) {
 
 // ✅ Student Attendance History
 router.get("/history", authMiddleware, async (req, res) => {
-  try {
-    if (req.user.role !== "student") {
-      return res.status(403).json({ msg: "Access denied. Only students can view attendance history." });
-    }
+  if (req.user.role !== "student") {
+    return res.status(403).json({ msg: "Access denied. Only students can view attendance history." });
+  }
 
+  try {
     const records = await Attendance.find({ studentId: req.user.id }).sort({ date: -1 });
     res.json(records);
   } catch (err) {
@@ -76,14 +76,13 @@ router.get("/history", authMiddleware, async (req, res) => {
 });
 
 // ✅ Lecturer Attendance Dashboard
-router.get("/course/:course", authMiddleware, async (req, res) => {
-  try {
-    if (req.user.role !== "lecturer") {
-      return res.status(403).json({ msg: "Access denied. Only lecturers can view attendance records." });
-    }
+router.get("/lecturer", authMiddleware, async (req, res) => {
+  if (req.user.role !== "lecturer") {
+    return res.status(403).json({ msg: "Access denied. Only lecturers can view attendance records." });
+  }
 
-    const { course } = req.params;
-    const records = await Attendance.find({ course }).sort({ date: -1 });
+  try {
+    const records = await Attendance.find().sort({ date: -1 });
     res.json(records);
   } catch (err) {
     res.status(500).json({ msg: "Server error", error: err.message });

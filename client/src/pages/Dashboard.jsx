@@ -10,26 +10,20 @@ const Dashboard = () => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
-      navigate("/login");
+      setError("❌ No token found. Redirecting...");
+      setTimeout(() => navigate("/login"), 2000);
       return;
     }
 
-    // Fetch user details
     axios.get("http://localhost:5000/api/auth/me", {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => setUser(res.data))
-      .catch(err => {
-        console.error("❌ Error fetching user data:", err);
-        setError("Failed to load user details. Redirecting to login...");
+      .then((res) => setUser(res.data))
+      .catch(() => {
+        setError("❌ Failed to load user details. Redirecting...");
         setTimeout(() => navigate("/login"), 2000);
       });
   }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
-  };
 
   return (
     <div className="max-w-3xl mx-auto p-6 text-center">
@@ -41,21 +35,34 @@ const Dashboard = () => {
         <>
           <p className="text-gray-600">Welcome, <strong>{user.name}</strong>! 🎉</p>
           
-          <nav className="mt-6 space-x-4">
-            <Link to="/generate-qr" className="text-blue-500 font-semibold">📌 Generate QR</Link>
+          {/* ✅ Only Lecturers can see "Generate QR Code" */}
+          {user.role === "lecturer" && (
+            <Link to="/generate-qr" className="bg-blue-500 text-white px-4 py-2 rounded">
+              📌 Generate QR Code
+            </Link>
+          )}
+
+          {/* ✅ Only Students can see "Scan QR Code" */}
+          {user.role === "student" && (
             <Link to="/scan-qr" className="text-green-500 font-semibold">📸 Scan QR</Link>
-            <Link to="/attendance-history" className="text-purple-500 font-semibold">📜 View Attendance</Link>
+          )}
+
+          {/* ✅ Both Students & Lecturers can see "View Attendance" */}
+          <nav className="mt-6 space-x-4">
+            <Link to="/attendance-history" className="text-purple-500 font-semibold">
+              📜 View Attendance
+            </Link>
           </nav>
 
           <button 
-            onClick={handleLogout}
+            onClick={() => { localStorage.removeItem("token"); navigate("/login"); }}
             className="mt-6 bg-red-500 text-white px-4 py-2 rounded"
           >
             🚪 Logout
           </button>
         </>
       ) : (
-        <p className="text-gray-500">Loading user details...</p>
+        <p className="text-gray-500">⏳ Loading user details...</p>
       )}
     </div>
   );

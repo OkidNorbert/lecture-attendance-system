@@ -4,6 +4,7 @@ import axios from "axios";
 
 const AttendanceHistory = () => {
   const [records, setRecords] = useState([]);
+  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -15,17 +16,25 @@ const AttendanceHistory = () => {
       return;
     }
 
-    axios
-      .get("http://localhost:5000/api/attendance/history", {
-        headers: { Authorization: `Bearer ${token}` },
+    // ✅ Fetch User Role
+    axios.get("http://localhost:5000/api/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        setUserRole(res.data.role);
+
+        // ✅ Choose API based on user role
+        const endpoint = res.data.role === "student"
+          ? "http://localhost:5000/api/attendance/history"   // Student API
+          : "http://localhost:5000/api/attendance/lecturer"; // Lecturer API
+
+        return axios.get(endpoint, { headers: { Authorization: `Bearer ${token}` } });
       })
       .then((res) => {
-        // ✅ Sort records by latest date first
-        const sortedRecords = res.data.sort((a, b) => new Date(b.date) - new Date(a.date));
-        setRecords(sortedRecords);
+        setRecords(res.data);
       })
       .catch(() => {
-        setError("❌ Error fetching attendance records. Please try again later.");
+        setError("❌ Error fetching attendance records.");
       })
       .finally(() => {
         setLoading(false);
@@ -34,9 +43,8 @@ const AttendanceHistory = () => {
 
   return (
     <div className="max-w-3xl mx-auto p-6 bg-white shadow-md rounded-lg">
-      <h2 className="text-2xl font-bold mb-4">📜 My Attendance History</h2>
+      <h2 className="text-2xl font-bold mb-4">📜 Attendance History</h2>
 
-      {/* ✅ Show loading state */}
       {loading ? (
         <p className="text-gray-500 text-center">⏳ Loading attendance records...</p>
       ) : error ? (
@@ -66,12 +74,14 @@ const AttendanceHistory = () => {
 
       {/* ✅ Navigation Buttons */}
       <div className="flex justify-center space-x-4 mt-6">
-        <button
-          onClick={() => navigate("/scan-qr")}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          📸 Scan QR Code
-        </button>
+        {userRole === "student" && (
+          <button
+            onClick={() => navigate("/scan-qr")}
+            className="bg-blue-500 text-white px-4 py-2 rounded"
+          >
+            📸 Scan QR Code
+          </button>
+        )}
         <button
           onClick={() => navigate("/dashboard")}
           className="bg-green-500 text-white px-4 py-2 rounded"
