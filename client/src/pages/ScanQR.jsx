@@ -9,12 +9,17 @@ const ScanQR = () => {
   const [studentLocation, setStudentLocation] = useState({ latitude: null, longitude: null });
   const navigate = useNavigate();
 
-  // ✅ Get Student's GPS Location
+  // ✅ Automatically fetch Student's GPS Location on page load
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
-      (position) =>
-        setStudentLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-      () => alert("⚠️ Location access denied. Please enable location services.")
+      (position) => {
+        setStudentLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      () => alert("⚠️ Location access denied. Please enable location services."),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
   }, []);
 
@@ -38,41 +43,47 @@ const ScanQR = () => {
 
   const markAttendance = async (qrData) => {
     const token = localStorage.getItem("token");
-
+  
     if (!token) {
       alert("❌ Please log in as a student.");
       navigate("/login");
       return;
     }
-
+  
     if (!studentLocation.latitude || !studentLocation.longitude) {
       alert("❌ Unable to fetch your location. Please enable GPS.");
       return;
     }
-
+  
     try {
-      // ✅ Extract sessionId from JSON QR data
-      const parsedData = JSON.parse(qrData);
-      const sessionId = parsedData.s;
-
+      console.log("✅ Raw Scanned QR Code:", qrData); // Log raw QR data
+      const parsedData = JSON.parse(qrData); // Convert scanned text to JSON
+      console.log("✅ Parsed QR Code Data:", parsedData); // Log parsed JSON
+  
+      if (!parsedData.course || !parsedData.date || !parsedData.sessionId) {
+        alert("❌ Invalid QR Code. Missing required fields.");
+        return;
+      }
+  
       const res = await axios.post(
         "http://localhost:5000/api/attendance/mark",
         {
-          sessionId,  // ✅ Send only sessionId
+          course: parsedData.course,
+          date: parsedData.date,
+          sessionId: parsedData.sessionId,
           studentLat: studentLocation.latitude,
           studentLon: studentLocation.longitude,
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
+  
       alert(`✅ ${res.data.msg}`);
     } catch (err) {
       console.error("❌ Attendance Marking Error:", err);
       alert(err.response?.data?.msg || "❌ Error marking attendance");
     }
   };
+  
 
   return (
     <div className="max-w-lg mx-auto p-6 bg-white shadow-md rounded-lg">

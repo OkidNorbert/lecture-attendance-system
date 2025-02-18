@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
@@ -16,11 +16,8 @@ const GenerateQR = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleGetLocation = () => {
+  // ✅ Fetch current location automatically (Optional)
+  useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setFormData((prev) => ({
@@ -31,8 +28,29 @@ const GenerateQR = () => {
       },
       () => setError("⚠️ Location access denied. Please enable GPS.")
     );
+  }, []);
+
+  // ✅ Handle input changes
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // ✅ Manually fetch location
+  const handleGetLocation = () => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormData((prev) => ({
+          ...prev,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }));
+        setError(null);
+      },
+      () => setError("⚠️ Location access denied. Please enable GPS.")
+    );
+  };
+
+  // ✅ Generate QR Code
   const handleGenerate = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
@@ -43,22 +61,26 @@ const GenerateQR = () => {
       return;
     }
 
+    if (!formData.latitude || !formData.longitude) {
+      alert("❌ GPS location is required to generate a QR Code.");
+      return;
+    }
+
     try {
       const res = await axios.post("http://localhost:5000/api/qrcode/generate", formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      console.log("✅ Generated QR Code URL:", res.data.qrCodeUrl);
-
       if (!res.data.qrCodeUrl) {
         throw new Error("QR Code generation failed.");
       }
 
+      console.log("✅ Generated QR Data:", res.data.qrData); // Log full QR content
       setQrCodeUrl(res.data.qrCodeUrl);
       setError(null);
     } catch (err) {
       console.error("❌ QR Code Generation Error:", err);
-      setError(err.response?.data?.msg || "Error generating QR Code");
+      setError(err.response?.data?.msg || "❌ Error generating QR Code");
     }
   };
 
@@ -77,7 +99,7 @@ const GenerateQR = () => {
         <input
           type="text"
           name="sessionId"
-          placeholder="Session ID"
+          placeholder="Session ID (must be unique)"
           onChange={handleChange}
           required
           className="w-full p-2 border border-gray-300 rounded"

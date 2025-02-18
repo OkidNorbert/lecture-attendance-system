@@ -10,43 +10,40 @@ router.post("/mark", authMiddleware, async (req, res) => {
       return res.status(403).json({ msg: "Access denied. Only students can mark attendance." });
     }
 
-    const { qrData, studentLat, studentLon } = req.body;
-    if (!qrData || studentLat === undefined || studentLon === undefined) {
-      return res.status(400).json({ msg: "QR data and location required" });
+    console.log("📥 Received Attendance Data:", req.body); // Debug log
+
+    const { course, date, sessionId, studentLat, studentLon } = req.body;
+    if (!course || !date || !sessionId || !studentLat || !studentLon) {
+      console.error("❌ Invalid QR Code Data:", req.body);
+      return res.status(400).json({ msg: "❌ Invalid QR Code data received" });
     }
 
-    const { course, date, sessionId, expiryTime, latitude, longitude, radius } = JSON.parse(qrData);
-
-    // ✅ Check if QR code is expired
-    if (Date.now() > expiryTime) {
-      return res.status(400).json({ msg: "QR Code has expired!" });
-    }
-
-    // ✅ Check if student is within the allowed radius
-    const distance = getDistance(latitude, longitude, studentLat, studentLon);
-    if (distance > radius) {
-      return res.status(400).json({ msg: "You are not in the classroom!" });
-    }
-
-    // ✅ Prevent duplicate attendance
+    // Prevent duplicate attendance
     const existingRecord = await Attendance.findOne({ studentId: req.user.id, sessionId });
-    if (existingRecord) return res.status(400).json({ msg: "Attendance already marked!" });
+    if (existingRecord) {
+      return res.status(400).json({ msg: "❌ Attendance already marked!" });
+    }
 
-    // ✅ Save Attendance Record
+    // Save Attendance Record
     const attendance = new Attendance({
       studentId: req.user.id,
       name: req.user.name,
       course,
       date,
       sessionId,
+      studentLat,
+      studentLon,
     });
 
     await attendance.save();
-    res.json({ msg: "Attendance marked successfully!" });
+    res.json({ msg: "✅ Attendance marked successfully!" });
   } catch (err) {
+    console.error("❌ Error saving attendance:", err);
     res.status(500).json({ msg: "Server error", error: err.message });
   }
 });
+
+
 
 // ✅ Helper function to calculate distance between two coordinates
 function getDistance(lat1, lon1, lat2, lon2) {
