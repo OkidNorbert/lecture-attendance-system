@@ -17,16 +17,18 @@ const AttendanceHistory = () => {
     }
 
     // ✅ Fetch User Role
-    axios.get("http://localhost:5000/api/auth/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    axios
+      .get("http://localhost:5000/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       .then((res) => {
         setUserRole(res.data.role);
 
         // ✅ Choose API based on user role
-        const endpoint = res.data.role === "student"
-          ? "http://localhost:5000/api/attendance/history"   // Student API
-          : "http://localhost:5000/api/attendance/lecturer"; // Lecturer API
+        const endpoint =
+          res.data.role === "student"
+            ? "http://localhost:5000/api/attendance/history" // Student API
+            : "http://localhost:5000/api/attendance/lecturer"; // Lecturer API
 
         return axios.get(endpoint, { headers: { Authorization: `Bearer ${token}` } });
       })
@@ -53,16 +55,20 @@ const AttendanceHistory = () => {
         <table className="w-full border-collapse border border-gray-300 shadow-md">
           <thead>
             <tr className="bg-gray-200">
+              {userRole === "lecturer" && <th className="border p-3">Student Name</th>}
               <th className="border p-3">Course</th>
               <th className="border p-3">Date</th>
+              <th className="border p-3">Time</th>
               <th className="border p-3">Session ID</th>
             </tr>
           </thead>
           <tbody>
             {records.map((record, index) => (
               <tr key={index} className="text-center border-b">
+                {userRole === "lecturer" && <td className="border p-3">{record.name}</td>}
                 <td className="border p-3">{record.course}</td>
-                <td className="border p-3">{new Date(record.date).toLocaleString()}</td>
+                <td className="border p-3">{new Date(record.timestamp).toLocaleDateString()}</td>
+                <td className="border p-3">{new Date(record.timestamp).toLocaleTimeString()}</td>
                 <td className="border p-3">{record.sessionId}</td>
               </tr>
             ))}
