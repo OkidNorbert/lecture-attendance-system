@@ -4,7 +4,7 @@ const Attendance = require("../models/Attendance");
 const Session = require("../models/Session"); // ✅ Ensure session validation
 const router = express.Router();
 
-// ✅ Mark Attendance with Student Name & Timestamp
+// ✅ Mark Attendance with Student Name
 router.post("/mark", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "student") {
@@ -13,8 +13,8 @@ router.post("/mark", authMiddleware, async (req, res) => {
 
     console.log("📥 Received Attendance Data:", req.body); // Debug log
 
-    const { course, date, sessionId, studentLat, studentLon, name } = req.body;
-    if (!course || !date || !sessionId || !studentLat || !studentLon || !name) {
+    const { course, sessionId, studentLat, studentLon, name } = req.body;
+    if (!course || !sessionId || !studentLat || !studentLon || !name) {
       console.error("❌ Invalid QR Code Data:", req.body);
       return res.status(400).json({ msg: "❌ Invalid QR Code data received" });
     }
@@ -37,16 +37,14 @@ router.post("/mark", authMiddleware, async (req, res) => {
       return res.status(400).json({ msg: "❌ Attendance already marked!" });
     }
 
-    // ✅ Save Attendance Record with Name & Timestamp
+    // ✅ Save Attendance Record with Name
     const attendance = new Attendance({
       studentId: req.user.id,
       name, // ✅ Store Student Name
       course,
-      date,
       sessionId,
       studentLat,
       studentLon,
-      timestamp: new Date(), // ✅ Store current timestamp
     });
 
     await attendance.save();
@@ -64,27 +62,21 @@ router.get("/history", authMiddleware, async (req, res) => {
   }
 
   try {
-    const records = await Attendance.find({ studentId: req.user.id }).sort({ timestamp: -1 });
+    const records = await Attendance.find({ studentId: req.user.id }).sort({ date: -1 });
     res.json(records);
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
 });
 
-// ✅ Lecturer Attendance Dashboard (Filter by Lecturer's Courses)
+// ✅ Lecturer Attendance Dashboard
 router.get("/lecturer", authMiddleware, async (req, res) => {
   if (req.user.role !== "lecturer") {
     return res.status(403).json({ msg: "❌ Access denied. Only lecturers can view attendance records." });
   }
 
   try {
-    // ✅ Fetch lecturer's courses
-    const sessions = await Session.find({ lecturer: req.user.id });
-    const courseList = sessions.map((session) => session.course);
-
-    // ✅ Fetch attendance for lecturer's courses only
-    const records = await Attendance.find({ course: { $in: courseList } }).sort({ timestamp: -1 });
-
+    const records = await Attendance.find().sort({ date: -1 });
     res.json(records);
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });

@@ -4,9 +4,9 @@ import axios from "axios";
 
 const AttendanceHistory = () => {
   const [records, setRecords] = useState([]);
-  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -16,27 +16,27 @@ const AttendanceHistory = () => {
       return;
     }
 
-    // ✅ Fetch User Role
+    // ✅ Fetch user role first
     axios
       .get("http://localhost:5000/api/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
         setUserRole(res.data.role);
-
-        // ✅ Choose API based on user role
-        const endpoint =
-          res.data.role === "student"
-            ? "http://localhost:5000/api/attendance/history" // Student API
-            : "http://localhost:5000/api/attendance/lecturer"; // Lecturer API
-
-        return axios.get(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+        return res.data.role === "student"
+          ? "http://localhost:5000/api/attendance/history" // ✅ Student Endpoint
+          : "http://localhost:5000/api/attendance/lecturer"; // ✅ Lecturer Endpoint
       })
+      .then((apiUrl) =>
+        axios.get(apiUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      )
       .then((res) => {
         setRecords(res.data);
       })
-      .catch(() => {
-        setError("❌ Error fetching attendance records.");
+      .catch((err) => {
+        setError(err.response?.data?.msg || "❌ Error fetching attendance records.");
       })
       .finally(() => {
         setLoading(false);
@@ -45,8 +45,9 @@ const AttendanceHistory = () => {
 
   return (
     <div className="max-w-3xl mx-auto p-6 bg-white shadow-md rounded-lg">
-      <h2 className="text-2xl font-bold mb-4">📜 Attendance History</h2>
+      <h2 className="text-2xl font-bold mb-4">📜 {userRole === "student" ? "My Attendance History" : "Lecturer Attendance Dashboard"}</h2>
 
+      {/* ✅ Show loading state */}
       {loading ? (
         <p className="text-gray-500 text-center">⏳ Loading attendance records...</p>
       ) : error ? (
@@ -57,8 +58,6 @@ const AttendanceHistory = () => {
             <tr className="bg-gray-200">
               {userRole === "lecturer" && <th className="border p-3">Student Name</th>}
               <th className="border p-3">Course</th>
-              <th className="border p-3">Date</th>
-              <th className="border p-3">Time</th>
               <th className="border p-3">Session ID</th>
             </tr>
           </thead>
@@ -67,8 +66,6 @@ const AttendanceHistory = () => {
               <tr key={index} className="text-center border-b">
                 {userRole === "lecturer" && <td className="border p-3">{record.name}</td>}
                 <td className="border p-3">{record.course}</td>
-                <td className="border p-3">{new Date(record.timestamp).toLocaleDateString()}</td>
-                <td className="border p-3">{new Date(record.timestamp).toLocaleTimeString()}</td>
                 <td className="border p-3">{record.sessionId}</td>
               </tr>
             ))}
