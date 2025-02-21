@@ -13,11 +13,12 @@ router.post("/mark", authMiddleware, async (req, res) => {
 
     console.log("📥 Received Attendance Data:", req.body); // Debug log
 
-    const { course, sessionId, studentLat, studentLon, name } = req.body;
-    if (!course || !sessionId || !studentLat || !studentLon || !name) {
+    const { course, date, sessionId, studentLat, studentLon, name } = req.body;
+    if (!course || !date || !sessionId || !studentLat || !studentLon || !name) {
       console.error("❌ Invalid QR Code Data:", req.body);
       return res.status(400).json({ msg: "❌ Invalid QR Code data received" });
     }
+
 
     // ✅ Validate if session exists
     const session = await Session.findOne({ sessionId });
@@ -42,6 +43,7 @@ router.post("/mark", authMiddleware, async (req, res) => {
       studentId: req.user.id,
       name, // ✅ Store Student Name
       course,
+      date,
       sessionId,
       studentLat,
       studentLon,

@@ -11,7 +11,7 @@ const ScanQR = () => {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
-  // ✅ Fetch User Details & GPS on page load
+  // ✅ Fetch User Details & GPS on Page Load
   useEffect(() => {
     const token = localStorage.getItem("token");
 
@@ -21,7 +21,7 @@ const ScanQR = () => {
       return;
     }
 
-    // ✅ Fetch user details
+    // ✅ Fetch user details (ensure role is student)
     axios
       .get("http://localhost:5000/api/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
@@ -39,7 +39,7 @@ const ScanQR = () => {
         navigate("/login");
       });
 
-    // ✅ Fetch GPS location
+    // ✅ Fetch GPS location before enabling scanning
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setStudentLocation({
@@ -47,7 +47,6 @@ const ScanQR = () => {
           longitude: position.coords.longitude,
         });
         setGpsFetched(true);
-        setScanning(true); // ✅ Start scanning after GPS is fetched
       },
       (error) => {
         alert("⚠️ Location access denied. Please enable GPS.");
@@ -59,28 +58,35 @@ const ScanQR = () => {
   }, []);
 
   useEffect(() => {
-    if (scanning && gpsFetched && user?.role === "student") {
+    if (gpsFetched && user?.role === "student") {
+      setScanning(true); // ✅ Only start scanning when GPS is fetched & user verified
+    }
+  }, [gpsFetched, user]);
+
+  // ✅ Initialize Scanner AFTER Component is Mounted
+  useEffect(() => {
+    if (scanning) {
       const scanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: 250 });
 
-      scanner.render(
-        (success) => {
-          if (!gpsFetched || !studentLocation.latitude || !studentLocation.longitude) {
-            alert("❌ Unable to fetch your location. Please enable GPS.");
-            setScanning(true); // 🔄 Restart scanning if GPS is missing
-            return;
-          }
-
-          setScannedData(success);
-          scanner.clear();
-          setScanning(false); // Stop scanning after success
-          markAttendance(success);
-        },
-        (error) => console.warn("⚠️ QR Scan Error: ", error)
-      );
+      setTimeout(() => {
+        if (document.getElementById("qr-reader")) {
+          scanner.render(
+            (success) => {
+              setScannedData(success);
+              scanner.clear();
+              setScanning(false); // Stop scanning after success
+              markAttendance(success);
+            },
+            (error) => console.warn("⚠️ QR Scan Error: ", error)
+          );
+        } else {
+          console.error("❌ QR Reader div not found. Ensure it's rendered in JSX.");
+        }
+      }, 500); // Delay to ensure div is loaded
 
       return () => scanner.clear(); // Cleanup when component unmounts
     }
-  }, [scanning, gpsFetched, user]);
+  }, [scanning]);
 
   const markAttendance = async (qrData) => {
     const token = localStorage.getItem("token");
@@ -93,7 +99,6 @@ const ScanQR = () => {
 
     if (!gpsFetched || !studentLocation.latitude || !studentLocation.longitude) {
       alert("❌ Unable to fetch your location. Please enable GPS.");
-      setScanning(true); // 🔄 Restart scanning if GPS is missing
       return;
     }
 
@@ -102,19 +107,25 @@ const ScanQR = () => {
       const parsedData = JSON.parse(qrData);
       console.log("✅ Parsed QR Code Data:", parsedData);
 
+      // ✅ Ensure QR Code contains required fields
       if (!parsedData.course || !parsedData.date || !parsedData.sessionId) {
         alert("❌ Invalid QR Code. Missing required fields.");
-        setScanning(true); // 🔄 Restart scanning
+        return;
+      }
+
+      // ✅ Fetch user details to get student name (only once)
+      if (!user?.name) {
+        alert("❌ Unable to fetch student name. Please try again.");
         return;
       }
 
       const res = await axios.post(
         "http://localhost:5000/api/attendance/mark",
         {
-          name: user.name, // ✅ Ensure student name is included
           course: parsedData.course,
-          date: parsedData.date,
+          date: parsedData.date, // ✅ Ensure date is included
           sessionId: parsedData.sessionId,
+          name: user.name, // ✅ Ensure student name is included
           studentLat: studentLocation.latitude,
           studentLon: studentLocation.longitude,
         },
@@ -125,21 +136,26 @@ const ScanQR = () => {
     } catch (err) {
       console.error("❌ Attendance Marking Error:", err);
       alert(err.response?.data?.msg || "❌ Error marking attendance");
-      setScanning(true); // 🔄 Restart scanning on error
     }
   };
 
   return (
     <div className="max-w-lg mx-auto p-6 bg-white shadow-md rounded-lg">
       <h2 className="text-xl font-bold mb-4">📸 Scan QR Code for Attendance</h2>
+      
       {!gpsFetched ? (
         <p className="text-gray-500">⏳ Fetching GPS location...</p>
-      ) : scanning ? (
-        <div id="qr-reader"></div>
       ) : (
-        <p>✅ QR Code Scanned!</p>
+        <div id="qr-reader" className="border p-2"></div>
       )}
-      {scannedData && <p className="text-green-600 font-semibold mt-2">QR Code Data: {scannedData}</p>}
+
+      {scannedData && (
+        <div className="mt-2 p-2 bg-gray-100 border rounded">
+          <h3 className="text-lg font-semibold">✅ QR Code Data:</h3>
+          <pre className="text-sm text-gray-800">{JSON.stringify(JSON.parse(scannedData), null, 2)}</pre>
+        </div>
+      )}
+
       <button
         onClick={() => setScanning(true)}
         className="bg-blue-500 text-white px-4 py-2 rounded mt-4"
