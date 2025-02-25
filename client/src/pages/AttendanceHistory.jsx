@@ -16,36 +16,40 @@ const AttendanceHistory = () => {
       return;
     }
 
-    // ✅ Fetch user role first
-    axios
-      .get("http://localhost:5000/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        setUserRole(res.data.role);
-        return res.data.role === "student"
-          ? "http://localhost:5000/api/attendance/history" // ✅ Student Endpoint
-          : "http://localhost:5000/api/attendance/lecturer"; // ✅ Lecturer Endpoint
-      })
-      .then((apiUrl) =>
-        axios.get(apiUrl, {
+    const fetchAttendance = async () => {
+      try {
+        // ✅ Fetch User Role First
+        const userRes = await axios.get("http://localhost:5000/api/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
-        })
-      )
-      .then((res) => {
-        setRecords(res.data);
-      })
-      .catch((err) => {
+        });
+
+        setUserRole(userRes.data.role);
+        const apiUrl =
+          userRes.data.role === "student"
+            ? "http://localhost:5000/api/attendance/history"
+            : "http://localhost:5000/api/attendance/lecturer";
+
+        // ✅ Fetch Attendance Records
+        const attendanceRes = await axios.get(apiUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setRecords(attendanceRes.data);
+      } catch (err) {
         setError(err.response?.data?.msg || "❌ Error fetching attendance records.");
-      })
-      .finally(() => {
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    fetchAttendance();
   }, [navigate]);
 
   return (
     <div className="max-w-3xl mx-auto p-6 bg-white shadow-md rounded-lg">
-      <h2 className="text-2xl font-bold mb-4">📜 {userRole === "student" ? "My Attendance History" : "Lecturer Attendance Dashboard"}</h2>
+      <h2 className="text-2xl font-bold mb-4">
+        📜 {userRole === "student" ? "My Attendance History" : "Lecturer Attendance Dashboard"}
+      </h2>
 
       {/* ✅ Show loading state */}
       {loading ? (
