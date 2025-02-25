@@ -141,6 +141,7 @@ const GenerateQR = () => {
         <div className="mt-4 text-center">
           <h3 className="text-lg font-semibold">📸 Scan this QR Code</h3>
           <img src={qrCodeUrl} alt="Generated QR Code" width="200" height="200" />
+          <p className="text-red-500 mt-2">⏳ Expires at: {new Date(expiryTime).toLocaleTimeString()}</p> {/* ✅ Show expiry time */}
           <a href={qrCodeUrl} download="qrcode.png" className="block mt-2 text-blue-500 underline">
             📥 Download QR Code
           </a>

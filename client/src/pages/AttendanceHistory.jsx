@@ -71,6 +71,7 @@ const AttendanceHistory = () => {
                 {userRole === "lecturer" && <td className="border p-3">{record.name}</td>}
                 <td className="border p-3">{record.course}</td>
                 <td className="border p-3">{record.sessionId}</td>
+                <td className="border p-3">{record.timestamp}</td>
               </tr>
             ))}
           </tbody>

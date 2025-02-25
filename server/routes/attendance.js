@@ -4,49 +4,44 @@ const Attendance = require("../models/Attendance");
 const Session = require("../models/Session"); // ✅ Ensure session validation
 const router = express.Router();
 
-// ✅ Mark Attendance with Student Name
+// ✅ Mark Attendance with Expiry Validation
 router.post("/mark", authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== "student") {
       return res.status(403).json({ msg: "❌ Access denied. Only students can mark attendance." });
     }
 
-    console.log("📥 Received Attendance Data:", req.body); // Debug log
+    console.log("📥 Received Attendance Data:", req.body);
 
     const { course, date, sessionId, studentLat, studentLon, name } = req.body;
     if (!course || !date || !sessionId || !studentLat || !studentLon || !name) {
-      console.error("❌ Invalid QR Code Data:", req.body);
       return res.status(400).json({ msg: "❌ Invalid QR Code data received" });
     }
 
-
     // ✅ Validate if session exists
     const session = await Session.findOne({ sessionId });
-    if (!session) {
-      return res.status(404).json({ msg: "❌ Session not found or expired!" });
-    }
+    if (!session) return res.status(404).json({ msg: "❌ Session not found or expired!" });
 
-    // ✅ Validate GPS Distance
-    const distance = getDistance(studentLat, studentLon, session.latitude, session.longitude);
-    if (distance > session.radius) {
-      return res.status(400).json({ msg: `❌ You are too far from the lecture location! (${Math.round(distance)}m away)` });
+    // ✅ Check if QR Code has expired
+    const currentTime = Date.now();
+    if (currentTime > session.expiryTime) {
+      return res.status(400).json({ msg: "❌ This QR Code has expired!" });
     }
 
     // ✅ Prevent duplicate attendance
     const existingRecord = await Attendance.findOne({ studentId: req.user.id, sessionId });
-    if (existingRecord) {
-      return res.status(400).json({ msg: "❌ Attendance already marked!" });
-    }
+    if (existingRecord) return res.status(400).json({ msg: "❌ Attendance already marked!" });
 
-    // ✅ Save Attendance Record with Name
+    // ✅ Save attendance record
     const attendance = new Attendance({
       studentId: req.user.id,
-      name, // ✅ Store Student Name
+      name,
       course,
       date,
       sessionId,
       studentLat,
       studentLon,
+      timestamp: new Date().toLocaleTimeString("en-US", { hour12: false })
     });
 
     await attendance.save();
@@ -56,6 +51,8 @@ router.post("/mark", authMiddleware, async (req, res) => {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
 });
+
+
 
 // ✅ Student Attendance History
 router.get("/history", authMiddleware, async (req, res) => {

@@ -90,54 +90,61 @@ const ScanQR = () => {
 
   const markAttendance = async (qrData) => {
     const token = localStorage.getItem("token");
-
+  
     if (!token) {
       alert("❌ Please log in as a student.");
       navigate("/login");
       return;
     }
-
+  
     if (!gpsFetched || !studentLocation.latitude || !studentLocation.longitude) {
       alert("❌ Unable to fetch your location. Please enable GPS.");
       return;
     }
-
+  
     try {
       console.log("✅ Raw Scanned QR Code:", qrData);
       const parsedData = JSON.parse(qrData);
       console.log("✅ Parsed QR Code Data:", parsedData);
-
-      // ✅ Ensure QR Code contains required fields
-      if (!parsedData.course || !parsedData.date || !parsedData.sessionId) {
+  
+      if (!parsedData.course || !parsedData.date || !parsedData.sessionId || !parsedData.expiryTime) {
         alert("❌ Invalid QR Code. Missing required fields.");
         return;
       }
-
-      // ✅ Fetch user details to get student name (only once)
+  
+      // ✅ Check if the QR Code is expired
+      const currentTime = Date.now();
+      if (currentTime > parsedData.expiryTime) {
+        alert("❌ This QR Code has expired! Please get a new one.");
+        return;
+      }
+  
+      // ✅ Ensure student name is available
       if (!user?.name) {
         alert("❌ Unable to fetch student name. Please try again.");
         return;
       }
-
+  
       const res = await axios.post(
         "http://localhost:5000/api/attendance/mark",
         {
           course: parsedData.course,
-          date: parsedData.date, // ✅ Ensure date is included
+          date: parsedData.date,
           sessionId: parsedData.sessionId,
-          name: user.name, // ✅ Ensure student name is included
+          name: user.name,
           studentLat: studentLocation.latitude,
           studentLon: studentLocation.longitude,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
+  
       alert(`✅ ${res.data.msg}`);
     } catch (err) {
       console.error("❌ Attendance Marking Error:", err);
       alert(err.response?.data?.msg || "❌ Error marking attendance");
     }
   };
+  
 
   return (
     <div className="max-w-lg mx-auto p-6 bg-white shadow-md rounded-lg">
