@@ -13,10 +13,11 @@ const GenerateQR = () => {
   });
 
   const [qrCodeUrl, setQrCodeUrl] = useState("");
+  const [expiryTime, setExpiryTime] = useState(null); // ✅ Added expiryTime state
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // ✅ Fetch current location automatically (Optional)
+  // ✅ Automatically fetch location on load
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -26,11 +27,11 @@ const GenerateQR = () => {
           longitude: position.coords.longitude,
         }));
       },
-      () => setError("⚠️ Location access denied. Please enable GPS.")
+      (err) => setError(`⚠️ Location access denied: ${err.message}`)
     );
   }, []);
 
-  // ✅ Handle input changes
+  // ✅ Handle form changes
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -46,7 +47,7 @@ const GenerateQR = () => {
         }));
         setError(null);
       },
-      () => setError("⚠️ Location access denied. Please enable GPS.")
+      (err) => setError(`⚠️ Location access denied: ${err.message}`)
     );
   };
 
@@ -71,12 +72,13 @@ const GenerateQR = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.data.qrCodeUrl) {
+      if (!res.data.qrCodeUrl || !res.data.expiryTime) {
         throw new Error("QR Code generation failed.");
       }
 
-      console.log("✅ Generated QR Data:", res.data.qrData); // Log full QR content
+      console.log("✅ Generated QR Data:", res.data.qrData);
       setQrCodeUrl(res.data.qrCodeUrl);
+      setExpiryTime(res.data.expiryTime); // ✅ Save expiry time
       setError(null);
     } catch (err) {
       console.error("❌ QR Code Generation Error:", err);
@@ -141,7 +143,9 @@ const GenerateQR = () => {
         <div className="mt-4 text-center">
           <h3 className="text-lg font-semibold">📸 Scan this QR Code</h3>
           <img src={qrCodeUrl} alt="Generated QR Code" width="200" height="200" />
-          <p className="text-red-500 mt-2">⏳ Expires at: {new Date(expiryTime).toLocaleTimeString()}</p> {/* ✅ Show expiry time */}
+          {expiryTime && (
+            <p className="text-red-500 mt-2">⏳ Expires at: {new Date(expiryTime).toLocaleTimeString()}</p>
+          )}
           <a href={qrCodeUrl} download="qrcode.png" className="block mt-2 text-blue-500 underline">
             📥 Download QR Code
           </a>
