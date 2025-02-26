@@ -55,7 +55,7 @@ const Dashboard = () => {
           </nav>
 
           <button 
-            onClick={() => { localStorage.removeItem("token"); navigate("/login"); }}
+            onClick={() => { localStorage.removeItem("token"); navigate("/"); }}
             className="mt-6 bg-red-500 text-white px-4 py-2 rounded"
           >
             🚪 Logout
