@@ -4,6 +4,7 @@ import FilterBar from './FilterBar';
 import { lecturerAPI } from '../../services/api';
 import { useNotification } from '../../context/NotificationContext';
 import { validateLecturerForm } from '../../utils/validation';
+import BulkOperations from './BulkOperations';
 
 const LecturerManagement = () => {
   const [lecturers, setLecturers] = useState([]);
@@ -24,6 +25,39 @@ const LecturerManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { showNotification } = useNotification();
+
+  const templateFields = [
+    {
+      header: 'Name',
+      required: true,
+      example: 'John Doe',
+      description: 'Full name of the lecturer'
+    },
+    {
+      header: 'Email',
+      required: true,
+      example: 'john.doe@university.edu',
+      description: 'University email address'
+    },
+    {
+      header: 'Department',
+      required: true,
+      example: 'Computer Science',
+      description: 'Department name'
+    },
+    {
+      header: 'Employment Status',
+      required: true,
+      example: 'FULL_TIME',
+      description: 'FULL_TIME or PART_TIME'
+    },
+    {
+      header: 'Specialization',
+      required: false,
+      example: 'Machine Learning',
+      description: 'Area of specialization'
+    }
+  ];
 
   useEffect(() => {
     fetchLecturers();
@@ -161,6 +195,17 @@ const LecturerManagement = () => {
     }
   };
 
+  const handleBulkImport = async (data) => {
+    try {
+      await lecturerAPI.bulkImport(data);
+      showNotification('success', 'Lecturers imported successfully');
+      fetchLecturers();
+    } catch (error) {
+      showNotification('error', 'Failed to import lecturers');
+      console.error(error);
+    }
+  };
+
   return (
     <div className="lecturer-management">
       <div className="management-header">
@@ -284,6 +329,12 @@ const LecturerManagement = () => {
           </div>
         )}
       </section>
+
+      <BulkOperations
+        onImport={handleBulkImport}
+        templateFields={templateFields}
+        entityName="Lecturer"
+      />
     </div>
   );
 };

@@ -22,7 +22,9 @@ export const lecturerAPI = {
   create: (data) => api.post('/admin/lecturers', data),
   getAll: () => api.get('/admin/lecturers'),
   update: (id, data) => api.put(`/admin/lecturers/${id}`, data),
-  delete: (id) => api.delete(`/admin/lecturers/${id}`)
+  delete: (id) => api.delete(`/admin/lecturers/${id}`),
+  bulkImport: (data) => api.post('/admin/lecturers/bulk-import', data),
+  bulkExport: (filters) => api.get('/admin/lecturers/bulk-export', { params: filters }),
 };
 
 export const courseAssignmentAPI = {

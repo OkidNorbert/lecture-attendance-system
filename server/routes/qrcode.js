@@ -3,47 +3,106 @@ const qr = require("qr-image");
 const authMiddleware = require("../middleware/auth");
 const Session = require("../models/Session"); 
 const router = express.Router();
+const QRCode = require('qrcode');
 
-// ✅ Generate QR Code (Only for Lecturers)
-router.post("/generate", authMiddleware, async (req, res) => {
-  try {
-    if (req.user.role !== "lecturer") {
-      return res.status(403).json({ msg: "❌ Access denied. Only lecturers can generate QR codes." });
+// Simple test route
+router.get('/test', (req, res) => {
+    res.json({ msg: "QR code route working" });
+});
+
+// Generate QR Code
+router.post('/generate', async (req, res) => {
+    try {
+        const { course, sessionId } = req.body;
+
+        // Create data with timestamp and expiration
+        const qrData = {
+            course,
+            sessionId,
+            timestamp: Date.now(),
+            expiresAt: Date.now() + (5 * 60 * 1000) // expires in 5 minutes
+        };
+
+        // Generate QR code
+        const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+            width: 300,  // larger size for easier scanning
+            margin: 2,
+            errorCorrectionLevel: 'H'  // highest error correction
+        });
+
+        res.json({
+            success: true,
+            qrCode: qrCodeDataUrl,
+            data: qrData,
+            expiresIn: '5 minutes'
+        });
+
+    } catch (err) {
+        console.error('QR Generation Error:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to generate QR code'
+        });
     }
+});
 
-    const { course, sessionId, duration, latitude, longitude, radius } = req.body;
+// Verify QR Code
+router.post('/verify', async (req, res) => {
+    try {
+        const { qrData } = req.body;
 
-    if (!course || !sessionId || !duration || !latitude || !longitude || !radius) {
-      return res.status(400).json({ msg: "❌ Missing required fields" });
+        // Validate input
+        if (!qrData) {
+            return res.status(400).json({
+                success: false,
+                error: 'QR data is required'
+            });
+        }
+
+        // Parse QR data
+        let parsedData;
+        try {
+            parsedData = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
+        } catch (error) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid QR data format'
+            });
+        }
+
+        // Check expiration
+        if (parsedData.expiresAt && Date.now() > parsedData.expiresAt) {
+            return res.status(400).json({
+                success: false,
+                error: 'QR code has expired'
+            });
+        }
+
+        // Validate required fields
+        if (!parsedData.course || !parsedData.sessionId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid QR data structure'
+            });
+        }
+
+        res.json({
+            success: true,
+            verified: true,
+            data: {
+                course: parsedData.course,
+                sessionId: parsedData.sessionId,
+                timestamp: parsedData.timestamp,
+                expiresAt: parsedData.expiresAt
+            }
+        });
+    } catch (err) {
+        console.error('QR Verification Error:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to verify QR code' 
+        });
     }
-
-    const expiryTime = Date.now() + duration * 60 * 1000; // ✅ Compute Expiry Time
-    const date = new Date().toISOString().split("T")[0]; // ✅ Generate today's date
-    
-    // ✅ Store session in database (prevent duplicate sessionId)
-    await Session.findOneAndUpdate(
-      { sessionId },
-      { course, date, expiryTime, latitude, longitude, radius, lecturer: req.user.name },
-      { new: true, upsert: true }
-    );
-
-    // ✅ Embed Expiry Time Inside QR Code
-    const qrData = JSON.stringify({ course, date, sessionId, lecturer: req.user.name, expiryTime });
-
-    console.log("✅ QR Code Data:", qrData);
-
-    const qrCodeImage = qr.imageSync(qrData, { type: "png" }); // ✅ Generate QR Code Image
-    const qrCodeBase64 = `data:image/png;base64,${qrCodeImage.toString("base64")}`;
-
-    res.json({ 
-      msg: "✅ QR Code generated successfully", 
-      qrCodeUrl: qrCodeBase64, 
-      expiryTime 
-    });
-  } catch (err) {
-    console.error("❌ Error in QR Code Generation:", err.message);
-    res.status(500).json({ msg: "❌ Server error", error: err.message });
-  }
 });
 
 module.exports = router;
