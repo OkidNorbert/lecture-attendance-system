@@ -10,18 +10,25 @@
     "preview": "vite preview"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@mui/icons-material": "^6.4.6",
     "@mui/material": "^6.4.6",
     "axios": "^1.8.1",
     "chart.js": "^4.4.8",
+=======
+    "axios": "^1.7.9",
+>>>>>>> parent of a3b2449 (admin page)
     "html5-qrcode": "^2.3.8",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
-    "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.3.1",
     "react-qr-code": "^2.0.15",
+<<<<<<< HEAD
     "react-router-dom": "^7.2.0",
     "xlsx-js-style": "^1.2.0"
+=======
+    "react-router-dom": "^7.1.5"
+>>>>>>> parent of a3b2449 (admin page)
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
