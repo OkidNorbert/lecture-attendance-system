@@ -21,7 +21,6 @@ const ProtectedAdminRoute = ({ children }) => {
 
 const App = () => {
   return (
-    <Router>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -41,7 +40,6 @@ const App = () => {
           }
         />
       </Routes>
-    </Router>
   );
 };
 
