@@ -63,6 +63,38 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.post("/admin/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    // Find admin by email
+    const admin = await User.findOne({ email, role: "admin" });
+
+    if (!admin) {
+      console.log("❌ Admin not found:", email);  // Log missing admin
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    console.log("✅ Admin found:", admin); // Debug admin details
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      console.log("❌ Password mismatch for:", email);
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    // Generate JWT Token
+    const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+    res.json({ token, admin: { id: admin._id, email: admin.email } });
+  } catch (error) {
+    console.error("❌ Login error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 // ✅ Get Authenticated User Details (Protected Route)
 router.get("/me", authMiddleware, async (req, res) => {
   try {
