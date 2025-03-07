@@ -1,14 +1,31 @@
 const mongoose = require("mongoose");
 
-const AttendanceSchema = new mongoose.Schema({
-  studentId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  name: { type: String, required: true },
-  course: { type: String, required: true },
-  date: { type: String, required: true }, // Keep only the date (YYYY-MM-DD)
-  sessionId: { type: String, required: true },
-  studentLat: { type: Number, required: true },
-  studentLon: { type: Number, required: true },
-  timestamp: { type: String, required: true } // ✅ New field for exact time
+const attendanceSchema = new mongoose.Schema({
+  session: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Session',
+    required: true
+  },
+  student: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['present', 'absent'],
+    required: true
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now
+  },
+  location: {
+    latitude: Number,
+    longitude: Number
+  }
+}, {
+  timestamps: true
 });
 
-module.exports = mongoose.model("Attendance", AttendanceSchema);
+module.exports = mongoose.model("Attendance", attendanceSchema);

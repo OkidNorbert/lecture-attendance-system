@@ -14,8 +14,12 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  Box,
   MenuItem,
+  Box,
+  Alert,
+  Select,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -28,13 +32,15 @@ const CourseManagement = () => {
   const [lecturers, setLecturers] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     code: '',
     unit: '',
     semester: '',
     year: '',
-    lecturerId: '',
+    lecturer: ''
   });
 
   useEffect(() => {
@@ -44,21 +50,41 @@ const CourseManagement = () => {
 
   const fetchCourses = async () => {
     try {
-      const response = await fetch('/api/admin/courses');
+      const response = await fetch('http://localhost:5000/api/admin/courses', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch courses');
       const data = await response.json();
       setCourses(data);
-    } catch (error) {
-      console.error('Error fetching courses:', error);
+    } catch (err) {
+      setError('Failed to load courses');
     }
   };
 
   const fetchLecturers = async () => {
     try {
-      const response = await fetch('/api/admin/users?role=lecturer');
+      const response = await fetch('http://localhost:5000/api/admin/lecturers', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Lecturers fetch error:', errorData);
+        throw new Error('Failed to fetch lecturers');
+      }
+
       const data = await response.json();
       setLecturers(data);
-    } catch (error) {
-      console.error('Error fetching lecturers:', error);
+    } catch (err) {
+      console.error('Error fetching lecturers:', err);
+      setError('Failed to load lecturers');
     }
   };
 
@@ -70,7 +96,7 @@ const CourseManagement = () => {
       unit: '',
       semester: '',
       year: '',
-      lecturerId: '',
+      lecturer: ''
     });
     setOpenDialog(true);
   };
@@ -83,7 +109,7 @@ const CourseManagement = () => {
       unit: course.unit,
       semester: course.semester,
       year: course.year,
-      lecturerId: course.lecturerId,
+      lecturer: course.lecturer?._id || ''
     });
     setOpenDialog(true);
   };
@@ -91,12 +117,18 @@ const CourseManagement = () => {
   const handleDeleteCourse = async (courseId) => {
     if (window.confirm('Are you sure you want to delete this course?')) {
       try {
-        await fetch(`/api/admin/remove-course/${courseId}`, {
+        const response = await fetch(`http://localhost:5000/api/admin/courses/${courseId}`, {
           method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          }
         });
+
+        if (!response.ok) throw new Error('Failed to delete course');
+        setSuccess('Course deleted successfully');
         fetchCourses();
-      } catch (error) {
-        console.error('Error deleting course:', error);
+      } catch (err) {
+        setError('Failed to delete course');
       }
     }
   };
@@ -105,26 +137,42 @@ const CourseManagement = () => {
     e.preventDefault();
     try {
       const url = selectedCourse
-        ? `/api/admin/courses/${selectedCourse._id}`
-        : '/api/admin/courses';
-      
-      await fetch(url, {
+        ? `http://localhost:5000/api/admin/courses/${selectedCourse._id}`
+        : 'http://localhost:5000/api/admin/courses';
+
+      const response = await fetch(url, {
         method: selectedCourse ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         },
         body: JSON.stringify(formData),
       });
 
+      if (!response.ok) throw new Error('Failed to save course');
+
+      setSuccess(selectedCourse ? 'Course updated successfully' : 'Course added successfully');
       setOpenDialog(false);
       fetchCourses();
-    } catch (error) {
-      console.error('Error saving course:', error);
+    } catch (err) {
+      setError('Failed to save course');
     }
   };
 
   return (
-    <>
+    <Box sx={{ p: 3 }}>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+      
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+          {success}
+        </Alert>
+      )}
+
       <Box sx={{ mb: 2 }}>
         <Button
           variant="contained"
@@ -139,7 +187,7 @@ const CourseManagement = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Course Code</TableCell>
+              <TableCell>Code</TableCell>
               <TableCell>Name</TableCell>
               <TableCell>Unit</TableCell>
               <TableCell>Semester</TableCell>
@@ -156,9 +204,7 @@ const CourseManagement = () => {
                 <TableCell>{course.unit}</TableCell>
                 <TableCell>{course.semester}</TableCell>
                 <TableCell>{course.year}</TableCell>
-                <TableCell>
-                  {lecturers.find(l => l._id === course.lecturerId)?.name || 'Unassigned'}
-                </TableCell>
+                <TableCell>{course.lecturer?.name || 'Not assigned'}</TableCell>
                 <TableCell>
                   <IconButton onClick={() => handleEditCourse(course)}>
                     <EditIcon />
@@ -185,6 +231,7 @@ const CourseManagement = () => {
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
               margin="normal"
+              required
             />
             <TextField
               fullWidth
@@ -192,13 +239,16 @@ const CourseManagement = () => {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               margin="normal"
+              required
             />
             <TextField
               fullWidth
               label="Course Unit"
+              type="number"
               value={formData.unit}
               onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
               margin="normal"
+              required
             />
             <TextField
               fullWidth
@@ -207,6 +257,7 @@ const CourseManagement = () => {
               value={formData.semester}
               onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
               margin="normal"
+              required
             >
               <MenuItem value="1">First Semester</MenuItem>
               <MenuItem value="2">Second Semester</MenuItem>
@@ -217,21 +268,25 @@ const CourseManagement = () => {
               value={formData.year}
               onChange={(e) => setFormData({ ...formData, year: e.target.value })}
               margin="normal"
+              required
             />
-            <TextField
-              fullWidth
-              select
-              label="Lecturer"
-              value={formData.lecturerId}
-              onChange={(e) => setFormData({ ...formData, lecturerId: e.target.value })}
-              margin="normal"
-            >
-              {lecturers.map((lecturer) => (
-                <MenuItem key={lecturer._id} value={lecturer._id}>
-                  {lecturer.name}
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Lecturer</InputLabel>
+              <Select
+                value={formData.lecturer}
+                onChange={(e) => setFormData({ ...formData, lecturer: e.target.value })}
+                label="Lecturer"
+              >
+                <MenuItem value="">
+                  <em>None</em>
                 </MenuItem>
-              ))}
-            </TextField>
+                {lecturers.map((lecturer) => (
+                  <MenuItem key={lecturer._id} value={lecturer._id}>
+                    {lecturer.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -241,7 +296,7 @@ const CourseManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </>
+    </Box>
   );
 };
 

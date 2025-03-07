@@ -6,6 +6,7 @@ const User = require("../models/User");
 const Course = require("../models/Course");
 const Attendance = require("../models/Attendance");
 const Session = require("../models/Session");
+const { sendTempPassword, sendWelcomeEmail } = require('../utils/emailService');
 
 const router = express.Router();
 
@@ -20,28 +21,50 @@ const adminMiddleware = (req, res, next) => {
 // 🔹 1️⃣ Register a Lecturer
 router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { name, email, courses, courseUnit, year, semester } = req.body;
-    
+    const { name, email, role } = req.body;
+
     let user = await User.findOne({ email });
-    if (user) return res.status(400).json({ msg: "❌ Lecturer already exists" });
+    if (user) {
+      return res.status(400).json({ msg: "❌ User already exists" });
+    }
 
     const tempPassword = Math.random().toString(36).slice(-8);
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    user = new User({ 
-      name, 
-      email, 
-      password: hashedPassword, 
-      role: "lecturer",
-      courses,
-      courseUnit,
-      year,
-      semester,
-      isApproved: false // New lecturers need approval
+    user = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role: role || 'lecturer',
     });
+
     await user.save();
 
-    res.status(201).json({ msg: "✅ Lecturer registered successfully", tempPassword });
+    // Send welcome email with credentials
+    try {
+      await sendWelcomeEmail(email, tempPassword, name, role);
+      res.status(201).json({
+        msg: "✅ User registered successfully. Login credentials sent to their email.",
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      });
+    } catch (emailError) {
+      // If email fails, still return success but with the password in response
+      console.error('Email sending failed:', emailError);
+      res.status(201).json({
+        msg: "✅ User registered, but email failed. Temporary password: " + tempPassword,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      });
+    }
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
@@ -69,7 +92,7 @@ router.post("/assign-course", authMiddleware, adminMiddleware, async (req, res) 
 // 🔹 3️⃣ View All Users (Students & Lecturers)
 router.get("/users", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const users = await User.find({}, "name email role");
+    const users = await User.find({}, '-password');
     res.json(users);
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
@@ -212,7 +235,10 @@ router.post("/login", async (req, res) => {
 router.delete("/remove-user/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) return res.status(404).json({ msg: "❌ User not found" });
+    
+    if (!user) {
+      return res.status(404).json({ msg: "❌ User not found" });
+    }
 
     res.json({ msg: `✅ ${user.role} removed successfully` });
   } catch (err) {
@@ -223,7 +249,7 @@ router.delete("/remove-user/:id", authMiddleware, adminMiddleware, async (req, r
 // 🔹 2️⃣ View All Courses
 router.get("/courses", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const courses = await Course.find();
+    const courses = await Course.find().populate('lecturer', 'name email');
     res.json(courses);
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
@@ -275,6 +301,103 @@ router.get("/student-attendance-trends", authMiddleware, adminMiddleware, async 
     ]);
 
     res.json(trends);
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Reset Password (Admin Only)
+router.post("/reset-password/:userId", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) {
+      return res.status(404).json({ msg: "❌ User not found" });
+    }
+
+    // Generate new temporary password
+    const tempPassword = Math.random().toString(36).slice(-8);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    // Update user's password
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({
+      msg: "✅ Password reset successfully",
+      tempPassword,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Add new course
+router.post("/courses", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, code, unit, semester, year, lecturer } = req.body;
+
+    // Check if course code already exists
+    const existingCourse = await Course.findOne({ code });
+    if (existingCourse) {
+      return res.status(400).json({ msg: "❌ Course code already exists" });
+    }
+
+    const course = new Course({
+      name,
+      code,
+      unit,
+      semester,
+      year,
+      lecturer
+    });
+
+    await course.save();
+    res.status(201).json({ msg: "✅ Course added successfully", course });
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Update course
+router.put("/courses/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const course = await Course.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true }
+    );
+    if (!course) return res.status(404).json({ msg: "❌ Course not found" });
+    res.json({ msg: "✅ Course updated successfully", course });
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Delete course
+router.delete("/courses/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const course = await Course.findByIdAndDelete(req.params.id);
+    if (!course) return res.status(404).json({ msg: "❌ Course not found" });
+    res.json({ msg: "✅ Course deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get lecturers for course assignment
+router.get("/lecturers", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const lecturers = await User.find(
+      { role: 'lecturer' }, 
+      'name email' // Only return name and email fields
+    );
+    
+    res.json(lecturers);
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }

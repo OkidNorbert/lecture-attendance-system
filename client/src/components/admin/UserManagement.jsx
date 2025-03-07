@@ -16,6 +16,7 @@ import {
   TextField,
   MenuItem,
   Box,
+  Alert,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -27,6 +28,8 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -40,11 +43,28 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/api/admin/users');
+      console.log('Fetching users...'); // Debug log
+      const response = await fetch('http://localhost:5000/api/admin/users', {  // Changed port to 5000
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Response status:', response.status); // Debug log
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server response:', errorText);
+        throw new Error(`Failed to fetch users: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Users data:', data); // Debug log
       setUsers(data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
+    } catch (err) {
+      console.error('Error in fetchUsers:', err);
+      setError('Failed to load users');
     }
   };
 
@@ -73,12 +93,49 @@ const UserManagement = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        await fetch(`/api/admin/remove-user/${userId}`, {
+        const response = await fetch(`http://localhost:5000/api/admin/remove-user/${userId}`, {  // Changed port to 5000
           method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json'
+          }
         });
-        fetchUsers();
-      } catch (error) {
-        console.error('Error deleting user:', error);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.msg || 'Failed to delete user');
+        }
+
+        const data = await response.json();
+        setSuccess(data.msg || 'User deleted successfully');
+        fetchUsers(); // Refresh the user list
+      } catch (err) {
+        console.error('Delete error:', err);
+        setError(err.message || 'Failed to delete user');
+      }
+    }
+  };
+
+  const handleResetPassword = async (userId) => {
+    if (window.confirm('Are you sure you want to reset this user\'s password?')) {
+      try {
+        const response = await fetch(`http://localhost:5000/api/admin/reset-password/${userId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.msg || 'Failed to reset password');
+        }
+
+        const data = await response.json();
+        setSuccess(`Password reset successfully. New temporary password: ${data.tempPassword}`);
+      } catch (err) {
+        setError(err.message || 'Failed to reset password');
       }
     }
   };
@@ -87,26 +144,52 @@ const UserManagement = () => {
     e.preventDefault();
     try {
       const url = selectedUser
-        ? `/api/admin/users/${selectedUser._id}`
-        : '/api/admin/register-lecturer';
+        ? `http://localhost:5000/api/admin/users/${selectedUser._id}`
+        : 'http://localhost:5000/api/admin/register-lecturer';
       
-      await fetch(url, {
+      console.log('Submitting to:', url);
+      console.log('Form data:', formData);
+
+      const response = await fetch(url, {
         method: selectedUser ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         },
         body: JSON.stringify(formData),
       });
 
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || 'Failed to save user');
+      }
+
+      const data = await response.json();
+      setSuccess(data.msg || (selectedUser ? 'User updated successfully' : 'User created successfully'));
       setOpenDialog(false);
       fetchUsers();
-    } catch (error) {
-      console.error('Error saving user:', error);
+    } catch (err) {
+      console.error('Error:', err);
+      setError(err.message || 'Failed to save user');
     }
   };
 
   return (
-    <>
+    <Box sx={{ p: 3 }}>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+      
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+          {success}
+        </Alert>
+      )}
+
       <Box sx={{ mb: 2 }}>
         <Button
           variant="contained"
@@ -140,6 +223,14 @@ const UserManagement = () => {
                   <IconButton onClick={() => handleDeleteUser(user._id)}>
                     <DeleteIcon />
                   </IconButton>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => handleResetPassword(user._id)}
+                    sx={{ ml: 1 }}
+                  >
+                    Reset Password
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -159,13 +250,16 @@ const UserManagement = () => {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               margin="normal"
+              required
             />
             <TextField
               fullWidth
               label="Email"
+              type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               margin="normal"
+              required
             />
             <TextField
               fullWidth
@@ -174,6 +268,7 @@ const UserManagement = () => {
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               margin="normal"
+              required
             >
               <MenuItem value="student">Student</MenuItem>
               <MenuItem value="lecturer">Lecturer</MenuItem>
@@ -188,7 +283,7 @@ const UserManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </>
+    </Box>
   );
 };
 

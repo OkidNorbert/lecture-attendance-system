@@ -2,6 +2,7 @@ require("dotenv").config(); // ✅ Load environment variables first
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const adminRoutes = require('./routes/admin');
 
 // ✅ Debugging: Log MONGO_URI
 console.log("MONGO_URI:", process.env.MONGO_URI);
@@ -16,7 +17,12 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', // Your React app's URL
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // ✅ Import routes
 const authRoutes = require("./routes/auth");
@@ -27,6 +33,7 @@ const qrRoutes = require("./routes/qrcode");
 app.use("/api/auth", authRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/qrcode", qrRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Default route
 app.get("/", (req, res) => {
@@ -44,6 +51,11 @@ const connectDB = async () => {
   }
 };
 connectDB();
+
+// Test route
+app.get('/test', (req, res) => {
+  res.json({ message: "Server is running!" });
+});
 
 // ✅ Start the server
 const PORT = process.env.PORT || 5000;
