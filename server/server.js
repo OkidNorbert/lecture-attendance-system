@@ -43,11 +43,16 @@ app.get("/", (req, res) => {
 // ✅ Connect to MongoDB
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ MongoDB Connected Successfully");
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+    });
+    console.log("✅ Connected to MongoDB");
   } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err.message);
-    process.exit(1);
+    console.error("❌ MongoDB connection error:", err);
+    process.exit(1); // Exit process with failure
   }
 };
 connectDB();
@@ -60,3 +65,10 @@ app.get('/test', (req, res) => {
 // ✅ Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Promise Rejection:', err);
+  // Close server & exit process
+  app.close(() => process.exit(1));
+});
