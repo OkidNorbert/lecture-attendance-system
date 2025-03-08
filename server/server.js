@@ -5,16 +5,15 @@ const mongoose = require("mongoose");
 const adminRoutes = require('./routes/admin');
 
 // ✅ Debugging: Log MONGO_URI
-console.log("MONGO_URI:", process.env.MONGO_URI);
+console.log("MONGODB_URI:", process.env.MONGODB_URI);
 
 // ✅ Ensure MongoDB URI is Defined
-if (!process.env.MONGO_URI) {
+if (!process.env.MONGODB_URI) {
   console.error("❌ MONGO_URI is not defined in .env file");
   process.exit(1);
 }
 
 const app = express();
-
 // Middleware
 app.use(express.json());
 app.use(cors({
@@ -43,7 +42,7 @@ app.get("/", (req, res) => {
 // ✅ Connect to MongoDB
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI, {
+    await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s

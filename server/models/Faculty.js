@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const departmentSchema = new mongoose.Schema({
+const facultySchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
@@ -14,17 +14,12 @@ const departmentSchema = new mongoose.Schema({
   description: {
     type: String
   },
-  faculty: {
+  departments: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Faculty',
-    required: true
-  },
-  head: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }
+    ref: 'Department'
+  }]
 }, {
   timestamps: true
 });
 
-module.exports = mongoose.model('Department', departmentSchema); 
+module.exports = mongoose.model('Faculty', facultySchema); 

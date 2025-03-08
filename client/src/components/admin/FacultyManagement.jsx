@@ -16,11 +16,7 @@ import {
   DialogActions,
   TextField,
   Alert,
-  Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem
+  Typography
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -28,71 +24,55 @@ import {
   Delete as DeleteIcon
 } from '@mui/icons-material';
 
-const DepartmentManagement = () => {
-  const [departments, setDepartments] = useState([]);
+const FacultyManagement = () => {
   const [faculties, setFaculties] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState(null);
+  const [selectedFaculty, setSelectedFaculty] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    description: '',
-    faculty: ''
+    description: ''
   });
 
   const fetchFaculties = async () => {
     try {
+      const token = localStorage.getItem('token'); // Make sure you're using the correct token key
+      console.log('Token:', token); // Debug log
+      
       const response = await fetch('http://localhost:5000/api/admin/faculties', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
-      if (!response.ok) throw new Error('Failed to fetch faculties');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || 'Failed to fetch faculties');
+      }
+
       const data = await response.json();
       setFaculties(data);
     } catch (err) {
+      console.error('Error fetching faculties:', err);
       setError('Failed to load faculties');
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/admin/departments', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch departments');
-      const data = await response.json();
-      setDepartments(data);
-    } catch (err) {
-      setError('Failed to load departments');
     }
   };
 
   useEffect(() => {
     fetchFaculties();
-    fetchDepartments();
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (!formData.faculty) {
-        throw new Error('Please select a faculty');
-      }
+      const url = selectedFaculty
+        ? `http://localhost:5000/api/admin/faculties/${selectedFaculty._id}`
+        : 'http://localhost:5000/api/admin/faculties';
 
-      const url = selectedDepartment
-        ? `http://localhost:5000/api/admin/departments/${selectedDepartment._id}`
-        : 'http://localhost:5000/api/admin/departments';
-
-      const method = selectedDepartment ? 'PUT' : 'POST';
+      const method = selectedFaculty ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
@@ -105,13 +85,13 @@ const DepartmentManagement = () => {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.msg || 'Failed to save department');
+        throw new Error(data.msg || 'Failed to save faculty');
       }
 
       const data = await response.json();
       setSuccess(data.msg);
       setOpenDialog(false);
-      fetchDepartments();
+      fetchFaculties();
       resetForm();
     } catch (err) {
       setError(err.message);
@@ -119,10 +99,10 @@ const DepartmentManagement = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this department?')) return;
+    if (!window.confirm('Are you sure you want to delete this faculty?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/departments/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/admin/faculties/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
@@ -132,11 +112,11 @@ const DepartmentManagement = () => {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.msg || 'Failed to delete department');
+        throw new Error(data.msg || 'Failed to delete faculty');
       }
 
-      setSuccess('Department deleted successfully');
-      fetchDepartments();
+      setSuccess('Faculty deleted successfully');
+      fetchFaculties();
     } catch (err) {
       setError(err.message);
     }
@@ -146,10 +126,9 @@ const DepartmentManagement = () => {
     setFormData({
       name: '',
       code: '',
-      description: '',
-      faculty: ''
+      description: ''
     });
-    setSelectedDepartment(null);
+    setSelectedFaculty(null);
   };
 
   return (
@@ -166,7 +145,7 @@ const DepartmentManagement = () => {
       )}
 
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6">Departments</Typography>
+        <Typography variant="h6">Faculties</Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -175,7 +154,7 @@ const DepartmentManagement = () => {
             setOpenDialog(true);
           }}
         >
-          Add Department
+          Add Faculty
         </Button>
       </Box>
 
@@ -185,27 +164,26 @@ const DepartmentManagement = () => {
             <TableRow>
               <TableCell>Code</TableCell>
               <TableCell>Name</TableCell>
-              <TableCell>Faculty</TableCell>
               <TableCell>Description</TableCell>
+              <TableCell>Departments</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {departments.map((department) => (
-              <TableRow key={department._id}>
-                <TableCell>{department.code}</TableCell>
-                <TableCell>{department.name}</TableCell>
-                <TableCell>{department.faculty?.name || 'N/A'}</TableCell>
-                <TableCell>{department.description}</TableCell>
+            {faculties.map((faculty) => (
+              <TableRow key={faculty._id}>
+                <TableCell>{faculty.code}</TableCell>
+                <TableCell>{faculty.name}</TableCell>
+                <TableCell>{faculty.description}</TableCell>
+                <TableCell>{faculty.departments?.length || 0}</TableCell>
                 <TableCell>
                   <IconButton 
                     onClick={() => {
-                      setSelectedDepartment(department);
+                      setSelectedFaculty(faculty);
                       setFormData({
-                        name: department.name,
-                        code: department.code,
-                        description: department.description || '',
-                        faculty: department.faculty?._id || ''
+                        name: faculty.name,
+                        code: faculty.code,
+                        description: faculty.description || ''
                       });
                       setOpenDialog(true);
                     }}
@@ -213,7 +191,7 @@ const DepartmentManagement = () => {
                   >
                     <EditIcon />
                   </IconButton>
-                  <IconButton onClick={() => handleDelete(department._id)} color="error">
+                  <IconButton onClick={() => handleDelete(faculty._id)} color="error">
                     <DeleteIcon />
                   </IconButton>
                 </TableCell>
@@ -225,27 +203,13 @@ const DepartmentManagement = () => {
 
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {selectedDepartment ? 'Edit Department' : 'Add New Department'}
+          {selectedFaculty ? 'Edit Faculty' : 'Add New Faculty'}
         </DialogTitle>
         <DialogContent>
           <Box component="form" sx={{ pt: 2 }}>
-            <FormControl fullWidth margin="normal" required>
-              <InputLabel>Faculty</InputLabel>
-              <Select
-                value={formData.faculty}
-                onChange={(e) => setFormData({ ...formData, faculty: e.target.value })}
-                label="Faculty"
-              >
-                {faculties.map((faculty) => (
-                  <MenuItem key={faculty._id} value={faculty._id}>
-                    {faculty.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
             <TextField
               fullWidth
-              label="Department Code"
+              label="Faculty Code"
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
               margin="normal"
@@ -253,7 +217,7 @@ const DepartmentManagement = () => {
             />
             <TextField
               fullWidth
-              label="Department Name"
+              label="Faculty Name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               margin="normal"
@@ -281,4 +245,4 @@ const DepartmentManagement = () => {
   );
 };
 
-export default DepartmentManagement;
+export default FacultyManagement; 

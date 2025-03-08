@@ -1,5 +1,6 @@
 // server/models/User.js
 const mongoose = require("mongoose");
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -10,7 +11,9 @@ const userSchema = new mongoose.Schema({
   department: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Department',
-    required: true
+    required: function() {
+      return this.role !== 'admin'; // Department is required only for non-admin users
+    }
   },
   program: {
     type: mongoose.Schema.Types.ObjectId,
@@ -37,5 +40,18 @@ const userSchema = new mongoose.Schema({
     default: false
   }
 }, { timestamps: true });
+
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = mongoose.model("User", userSchema);

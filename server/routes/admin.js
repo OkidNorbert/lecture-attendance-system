@@ -9,16 +9,10 @@ const Session = require("../models/Session");
 const { sendTempPassword, sendWelcomeEmail } = require('../utils/emailService');
 const Department = require("../models/Department");
 const Program = require("../models/Program");
+const Faculty = require('../models/Faculty');
+const adminMiddleware = require('../middleware/admin');
 
 const router = express.Router();
-
-// ✅ Ensure only admin can access these routes
-const adminMiddleware = (req, res, next) => {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ msg: "❌ Access denied. Admins only." });
-  }
-  next();
-};
 
 // 🔹 1️⃣ Register a Lecturer
 router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, res) => {
@@ -896,6 +890,132 @@ router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async
   } catch (err) {
     console.error('Error fetching course students:', err);
     res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get all faculties
+router.get("/faculties", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const faculties = await Faculty.find()
+      .populate('departments', 'name code');
+    res.json(faculties);
+  } catch (err) {
+    console.error('Error fetching faculties:', err);
+    res.status(500).json({ msg: "Server error", error: err.message });
+  }
+});
+
+// Get single faculty
+router.get("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const faculty = await Faculty.findById(req.params.id)
+      .populate('departments', 'name code');
+    
+    if (!faculty) {
+      return res.status(404).json({ msg: "Faculty not found" });
+    }
+    
+    res.json(faculty);
+  } catch (err) {
+    console.error('Error fetching faculty:', err);
+    res.status(500).json({ msg: "Server error", error: err.message });
+  }
+});
+
+// Create faculty
+router.post("/faculties", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, code, description } = req.body;
+
+    // Check for existing faculty
+    const existingFaculty = await Faculty.findOne({ 
+      $or: [{ name }, { code }] 
+    });
+    
+    if (existingFaculty) {
+      return res.status(400).json({ 
+        msg: "Faculty with this name or code already exists" 
+      });
+    }
+
+    const faculty = new Faculty({
+      name,
+      code,
+      description
+    });
+
+    await faculty.save();
+    res.status(201).json({ 
+      msg: "Faculty created successfully", 
+      faculty 
+    });
+  } catch (err) {
+    console.error('Error creating faculty:', err);
+    res.status(500).json({ msg: "Server error", error: err.message });
+  }
+});
+
+// Update faculty
+router.put("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, code, description } = req.body;
+
+    // Check for existing faculty with same name or code
+    const existingFaculty = await Faculty.findOne({
+      _id: { $ne: req.params.id },
+      $or: [{ name }, { code }]
+    });
+
+    if (existingFaculty) {
+      return res.status(400).json({ 
+        msg: "Faculty with this name or code already exists" 
+      });
+    }
+
+    const faculty = await Faculty.findByIdAndUpdate(
+      req.params.id,
+      { name, code, description },
+      { new: true }
+    ).populate('departments', 'name code');
+
+    if (!faculty) {
+      return res.status(404).json({ msg: "Faculty not found" });
+    }
+
+    res.json({ 
+      msg: "Faculty updated successfully", 
+      faculty 
+    });
+  } catch (err) {
+    console.error('Error updating faculty:', err);
+    res.status(500).json({ msg: "Server error", error: err.message });
+  }
+});
+
+// Delete faculty
+router.delete("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    // Check if faculty has departments
+    const departmentCount = await Department.countDocuments({ 
+      faculty: req.params.id 
+    });
+
+    if (departmentCount > 0) {
+      return res.status(400).json({ 
+        msg: "Cannot delete faculty with existing departments" 
+      });
+    }
+
+    const faculty = await Faculty.findByIdAndDelete(req.params.id);
+    
+    if (!faculty) {
+      return res.status(404).json({ msg: "Faculty not found" });
+    }
+
+    res.json({ msg: "Faculty deleted successfully" });
+  } catch (err) {
+    console.error('Error deleting faculty:', err);
+    res.status(500).json({ msg: "Server error", error: err.message });
   }
 });
 
