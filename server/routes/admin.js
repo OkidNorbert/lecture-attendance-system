@@ -7,6 +7,8 @@ const Course = require("../models/Course");
 const Attendance = require("../models/Attendance");
 const Session = require("../models/Session");
 const { sendTempPassword, sendWelcomeEmail } = require('../utils/emailService');
+const Department = require("../models/Department");
+const Program = require("../models/Program");
 
 const router = express.Router();
 
@@ -21,7 +23,7 @@ const adminMiddleware = (req, res, next) => {
 // 🔹 1️⃣ Register a Lecturer
 router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { name, email, role } = req.body;
+    const { name, email, department, role } = req.body;
 
     let user = await User.findOne({ email });
     if (user) {
@@ -35,7 +37,9 @@ router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, r
       name,
       email,
       password: hashedPassword,
-      role: role || 'lecturer',
+      role,
+      department,
+      isApproved: true
     });
 
     await user.save();
@@ -45,11 +49,13 @@ router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, r
       await sendWelcomeEmail(email, tempPassword, name, role);
       res.status(201).json({
         msg: "✅ User registered successfully. Login credentials sent to their email.",
+        tempPassword,
         user: {
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          department: user.department
         }
       });
     } catch (emailError) {
@@ -57,11 +63,13 @@ router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, r
       console.error('Email sending failed:', emailError);
       res.status(201).json({
         msg: "✅ User registered, but email failed. Temporary password: " + tempPassword,
+        tempPassword,
         user: {
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          department: user.department
         }
       });
     }
@@ -249,10 +257,29 @@ router.delete("/remove-user/:id", authMiddleware, adminMiddleware, async (req, r
 // 🔹 2️⃣ View All Courses
 router.get("/courses", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const courses = await Course.find().populate('lecturer', 'name email');
+    const courses = await Course.find()
+      .populate('department', 'name code')
+      .populate({
+        path: 'programs',
+        populate: [
+          { 
+            path: 'program',
+            select: 'name code'
+          },
+          {
+            path: 'lecturer',
+            select: 'name email'
+          }
+        ]
+      });
+    
     res.json(courses);
   } catch (err) {
-    res.status(500).json({ msg: "❌ Server error", error: err.message });
+    console.error('Error fetching courses:', err);
+    res.status(500).json({ 
+      msg: "❌ Server error", 
+      error: err.message 
+    });
   }
 });
 
@@ -336,69 +363,538 @@ router.post("/reset-password/:userId", authMiddleware, adminMiddleware, async (r
   }
 });
 
-// Add new course
+// Get courses by program
+router.get("/programs/:programId/courses", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const courses = await Course.find({
+      'programs.program': req.params.programId
+    })
+    .populate('department', 'name code')
+    .populate({
+      path: 'programs',
+      populate: [
+        { path: 'program', select: 'name code' },
+        { path: 'lecturer', select: 'name email' }
+      ]
+    });
+    res.json(courses);
+  } catch (err) {
+    console.error('Error fetching program courses:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Add course to program
 router.post("/courses", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { name, code, unit, semester, year, lecturer } = req.body;
+    const { name, code, semester, year, department, programs } = req.body;
 
-    // Check if course code already exists
-    const existingCourse = await Course.findOne({ code });
+    // Validate department
+    const departmentExists = await Department.findById(department);
+    if (!departmentExists) {
+      return res.status(404).json({ msg: "❌ Department not found" });
+    }
+
+    // Validate programs
+    for (const prog of programs) {
+      const programExists = await Program.findById(prog.program);
+      if (!programExists) {
+        return res.status(404).json({ 
+          msg: `❌ Program with ID ${prog.program} not found` 
+        });
+      }
+      if (prog.lecturer) {
+        const lecturerExists = await User.findOne({ 
+          _id: prog.lecturer,
+          role: 'lecturer'
+        });
+        if (!lecturerExists) {
+          return res.status(404).json({ 
+            msg: `❌ Lecturer with ID ${prog.lecturer} not found` 
+          });
+        }
+      }
+    }
+
+    // Check for duplicate course code in department
+    const existingCourse = await Course.findOne({
+      code: { $regex: new RegExp(`^${code}$`, 'i') },
+      department
+    });
+
     if (existingCourse) {
-      return res.status(400).json({ msg: "❌ Course code already exists" });
+      return res.status(400).json({ 
+        msg: "❌ Course with this code already exists in this department" 
+      });
     }
 
     const course = new Course({
       name,
       code,
-      unit,
       semester,
       year,
-      lecturer
+      department,
+      programs
     });
 
     await course.save();
-    res.status(201).json({ msg: "✅ Course added successfully", course });
+
+    // Populate all references before sending response
+    const populatedCourse = await Course.findById(course._id)
+      .populate('department', 'name code')
+      .populate({
+        path: 'programs',
+        populate: [
+          { path: 'program', select: 'name code' },
+          { path: 'lecturer', select: 'name email' }
+        ]
+      });
+
+    res.status(201).json({ 
+      msg: "✅ Course added successfully", 
+      course: populatedCourse 
+    });
   } catch (err) {
+    console.error('Error creating course:', err);
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
 });
 
-// Update course
-router.put("/courses/:id", authMiddleware, adminMiddleware, async (req, res) => {
+// Get lecturers by department
+router.get("/departments/:departmentId/lecturers", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const course = await Course.findByIdAndUpdate(
-      req.params.id,
-      { $set: req.body },
-      { new: true }
-    );
-    if (!course) return res.status(404).json({ msg: "❌ Course not found" });
-    res.json({ msg: "✅ Course updated successfully", course });
-  } catch (err) {
-    res.status(500).json({ msg: "❌ Server error", error: err.message });
-  }
-});
-
-// Delete course
-router.delete("/courses/:id", authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const course = await Course.findByIdAndDelete(req.params.id);
-    if (!course) return res.status(404).json({ msg: "❌ Course not found" });
-    res.json({ msg: "✅ Course deleted successfully" });
-  } catch (err) {
-    res.status(500).json({ msg: "❌ Server error", error: err.message });
-  }
-});
-
-// Get lecturers for course assignment
-router.get("/lecturers", authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const lecturers = await User.find(
-      { role: 'lecturer' }, 
-      'name email' // Only return name and email fields
-    );
-    
+    const lecturers = await User.find({
+      department: req.params.departmentId,
+      role: 'lecturer'
+    })
+    .select('name email');
     res.json(lecturers);
   } catch (err) {
+    console.error('Error fetching department lecturers:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get students for course assignment
+router.get("/students", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const students = await User.find({ role: 'student' }, 'name email');
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Assign students to course
+router.post("/courses/:courseId/students", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { studentIds } = req.body;
+    const course = await Course.findById(req.params.courseId);
+    
+    if (!course) {
+      return res.status(404).json({ msg: "❌ Course not found" });
+    }
+
+    course.students = studentIds;
+    await course.save();
+
+    // Update students' courses array
+    await User.updateMany(
+      { _id: { $in: studentIds } },
+      { $addToSet: { courses: course._id } }
+    );
+
+    // Remove course from students no longer in the course
+    await User.updateMany(
+      { 
+        _id: { $nin: studentIds },
+        courses: course._id 
+      },
+      { $pull: { courses: course._id } }
+    );
+
+    res.json({ msg: "✅ Students assigned successfully" });
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get students in a course
+router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.courseId).populate('students', 'name email');
+    if (!course) {
+      return res.status(404).json({ msg: "❌ Course not found" });
+    }
+    res.json(course.students);
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Department Routes
+router.get("/departments", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const departments = await Department.find().populate('head', 'name email');
+    res.json(departments);
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+router.post("/departments", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, code, description, head } = req.body;
+    
+    const existingDept = await Department.findOne({ 
+      $or: [{ name }, { code }] 
+    });
+    if (existingDept) {
+      return res.status(400).json({ msg: "❌ Department already exists" });
+    }
+
+    const department = new Department({ name, code, description, head });
+    await department.save();
+
+    res.status(201).json({ msg: "✅ Department added successfully", department });
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Program Routes
+router.get("/programs", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const programs = await Program.find()
+      .populate('department', 'name code');
+    res.json(programs);
+  } catch (err) {
+    console.error('Error fetching programs:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+router.post("/programs", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, code, department, duration, description } = req.body;
+
+    // Check if program code already exists
+    const existingProgram = await Program.findOne({ 
+      $or: [
+        { code: { $regex: new RegExp(`^${code}$`, 'i') } },
+        { 
+          name: { $regex: new RegExp(`^${name}$`, 'i') },
+          department: department 
+        }
+      ]
+    });
+
+    if (existingProgram) {
+      return res.status(400).json({ 
+        msg: "❌ Program with this code or name already exists in this department" 
+      });
+    }
+
+    // Verify department exists
+    const departmentExists = await Department.findById(department);
+    if (!departmentExists) {
+      return res.status(404).json({ msg: "❌ Department not found" });
+    }
+
+    const program = new Program({
+      name,
+      code,
+      department,
+      duration,
+      description
+    });
+
+    await program.save();
+
+    // Populate department details before sending response
+    const populatedProgram = await Program.findById(program._id)
+      .populate('department', 'name code');
+
+    res.status(201).json({ 
+      msg: "✅ Program added successfully", 
+      program: populatedProgram 
+    });
+  } catch (err) {
+    console.error('Error creating program:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get programs by department
+router.get("/departments/:departmentId/programs", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const programs = await Program.find({ department: req.params.departmentId })
+      .populate('department', 'name code');
+    res.json(programs);
+  } catch (err) {
+    console.error('Error fetching department programs:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Update program
+router.put("/programs/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, code, department, duration, description } = req.body;
+
+    // Check if program exists with same code (excluding current program)
+    const existingProgram = await Program.findOne({
+      _id: { $ne: req.params.id },
+      $or: [
+        { code: { $regex: new RegExp(`^${code}$`, 'i') } },
+        { 
+          name: { $regex: new RegExp(`^${name}$`, 'i') },
+          department: department 
+        }
+      ]
+    });
+
+    if (existingProgram) {
+      return res.status(400).json({ 
+        msg: "❌ Program with this code or name already exists in this department" 
+      });
+    }
+
+    const program = await Program.findByIdAndUpdate(
+      req.params.id,
+      { name, code, department, duration, description },
+      { new: true, runValidators: true }
+    ).populate('department', 'name code');
+
+    if (!program) {
+      return res.status(404).json({ msg: "❌ Program not found" });
+    }
+
+    res.json({ 
+      msg: "✅ Program updated successfully", 
+      program 
+    });
+  } catch (err) {
+    console.error('Error updating program:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Delete program
+router.delete("/programs/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    // Check if program has associated courses or students
+    const courseCount = await Course.countDocuments({
+      'programs.program': req.params.id
+    });
+    
+    const studentCount = await User.countDocuments({
+      program: req.params.id
+    });
+
+    if (courseCount > 0 || studentCount > 0) {
+      return res.status(400).json({ 
+        msg: "❌ Cannot delete program with associated courses or students" 
+      });
+    }
+
+    const program = await Program.findByIdAndDelete(req.params.id);
+    if (!program) {
+      return res.status(404).json({ msg: "❌ Program not found" });
+    }
+
+    res.json({ msg: "✅ Program deleted successfully" });
+  } catch (err) {
+    console.error('Error deleting program:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get students by program
+router.get("/programs/:programId/students", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const students = await User.find({
+      program: req.params.programId,
+      role: 'student'
+    })
+    .select('name email')
+    .populate('program', 'name code')
+    .populate('department', 'name code');
+    
+    res.json(students);
+  } catch (err) {
+    console.error('Error fetching program students:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Enroll students in a course
+router.post("/courses/:courseId/enroll", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { studentIds, programId } = req.body;
+    const course = await Course.findById(req.params.courseId);
+    
+    if (!course) {
+      return res.status(404).json({ msg: "❌ Course not found" });
+    }
+
+    // Verify program exists in course
+    const programExists = course.programs.some(p => 
+      p.program.toString() === programId
+    );
+    
+    if (!programExists) {
+      return res.status(400).json({ 
+        msg: "❌ This course is not offered for the selected program" 
+      });
+    }
+
+    // Verify all students exist and belong to the program
+    const students = await User.find({
+      _id: { $in: studentIds },
+      role: 'student',
+      program: programId
+    });
+
+    if (students.length !== studentIds.length) {
+      return res.status(400).json({ 
+        msg: "❌ Some selected students are not valid or not in the specified program" 
+      });
+    }
+
+    // Update course students
+    const updatedCourse = await Course.findByIdAndUpdate(
+      req.params.courseId,
+      {
+        $addToSet: {
+          students: studentIds.map(studentId => ({
+            student: studentId,
+            program: programId
+          }))
+        }
+      },
+      { new: true }
+    )
+    .populate('department', 'name code')
+    .populate({
+      path: 'programs',
+      populate: [
+        { path: 'program', select: 'name code' },
+        { path: 'lecturer', select: 'name email' }
+      ]
+    })
+    .populate({
+      path: 'students',
+      populate: [
+        { path: 'student', select: 'name email' },
+        { path: 'program', select: 'name code' }
+      ]
+    });
+
+    // Update students' courses array
+    await User.updateMany(
+      { _id: { $in: studentIds } },
+      {
+        $addToSet: {
+          courses: {
+            course: course._id,
+            program: programId
+          }
+        }
+      }
+    );
+
+    res.json({ 
+      msg: "✅ Students enrolled successfully", 
+      course: updatedCourse 
+    });
+  } catch (err) {
+    console.error('Error enrolling students:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Remove students from a course
+router.post("/courses/:courseId/unenroll", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { studentIds, programId } = req.body;
+    const course = await Course.findById(req.params.courseId);
+    
+    if (!course) {
+      return res.status(404).json({ msg: "❌ Course not found" });
+    }
+
+    // Remove students from course
+    const updatedCourse = await Course.findByIdAndUpdate(
+      req.params.courseId,
+      {
+        $pull: {
+          students: {
+            student: { $in: studentIds },
+            program: programId
+          }
+        }
+      },
+      { new: true }
+    )
+    .populate('department', 'name code')
+    .populate({
+      path: 'programs',
+      populate: [
+        { path: 'program', select: 'name code' },
+        { path: 'lecturer', select: 'name email' }
+      ]
+    })
+    .populate({
+      path: 'students',
+      populate: [
+        { path: 'student', select: 'name email' },
+        { path: 'program', select: 'name code' }
+      ]
+    });
+
+    // Remove course from students' courses array
+    await User.updateMany(
+      { _id: { $in: studentIds } },
+      {
+        $pull: {
+          courses: {
+            course: course._id,
+            program: programId
+          }
+        }
+      }
+    );
+
+    res.json({ 
+      msg: "✅ Students unenrolled successfully", 
+      course: updatedCourse 
+    });
+  } catch (err) {
+    console.error('Error unenrolling students:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get enrolled students in a course
+router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.courseId)
+      .populate({
+        path: 'students',
+        populate: [
+          { path: 'student', select: 'name email' },
+          { path: 'program', select: 'name code' }
+        ]
+      });
+
+    if (!course) {
+      return res.status(404).json({ msg: "❌ Course not found" });
+    }
+
+    res.json(course.students);
+  } catch (err) {
+    console.error('Error fetching course students:', err);
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
 });

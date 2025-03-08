@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Box,
   Paper,
   Table,
   TableBody,
@@ -14,21 +15,26 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  MenuItem,
-  Box,
   Alert,
   Select,
+  MenuItem,
   FormControl,
   InputLabel,
+  Grid,
+  Chip,
+  Typography,
+  CircularProgress
 } from '@mui/material';
 import {
-  Delete as DeleteIcon,
-  Edit as EditIcon,
   Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 
 const CourseManagement = () => {
   const [courses, setCourses] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [lecturers, setLecturers] = useState([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -37,16 +43,48 @@ const CourseManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    unit: '',
     semester: '',
     year: '',
-    lecturer: ''
+    department: '',
+    programs: []
   });
+  const [departmentPrograms, setDepartmentPrograms] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [departmentLecturers, setDepartmentLecturers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [loadingLecturers, setLoadingLecturers] = useState(false);
 
   useEffect(() => {
-    fetchCourses();
-    fetchLecturers();
+    const fetchInitialData = async () => {
+      try {
+        setInitialLoading(true);
+        await Promise.all([
+          fetchCourses(),
+          fetchDepartments()
+        ]);
+      } catch (err) {
+        console.error('Error fetching initial data:', err);
+        setError('Failed to load initial data');
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    fetchInitialData();
   }, []);
+
+  useEffect(() => {
+    if (formData.department) {
+      fetchProgramsByDepartment(formData.department);
+    }
+  }, [formData.department]);
+
+  useEffect(() => {
+    if (selectedDepartment) {
+      fetchLecturers(selectedDepartment);
+    }
+  }, [selectedDepartment]);
 
   const fetchCourses = async () => {
     try {
@@ -65,26 +103,69 @@ const CourseManagement = () => {
     }
   };
 
-  const fetchLecturers = async () => {
+  const fetchDepartments = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/lecturers', {
+      const response = await fetch('http://localhost:5000/api/admin/departments', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json'
         }
       });
 
+      if (!response.ok) throw new Error('Failed to fetch departments');
+      const data = await response.json();
+      setDepartments(data);
+    } catch (err) {
+      setError('Failed to load departments');
+    }
+  };
+
+  const fetchProgramsByDepartment = async (departmentId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/admin/departments/${departmentId}/programs`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch programs');
+      const data = await response.json();
+      setDepartmentPrograms(data);
+    } catch (err) {
+      setError('Failed to load programs');
+    }
+  };
+
+  const fetchLecturers = async (departmentId) => {
+    if (!departmentId) return;
+    
+    try {
+      setLoadingLecturers(true);
+      setError(''); // Clear any previous errors
+      
+      const response = await fetch(
+        `http://localhost:5000/api/admin/departments/${departmentId}/lecturers`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Lecturers fetch error:', errorData);
-        throw new Error('Failed to fetch lecturers');
+        throw new Error(`Failed to fetch lecturers: ${response.statusText}`);
       }
 
       const data = await response.json();
-      setLecturers(data);
+      setDepartmentLecturers(data);
     } catch (err) {
       console.error('Error fetching lecturers:', err);
-      setError('Failed to load lecturers');
+      setError('Failed to load lecturers for this department');
+      setDepartmentLecturers([]); // Reset lecturers on error
+    } finally {
+      setLoadingLecturers(false);
     }
   };
 
@@ -93,10 +174,10 @@ const CourseManagement = () => {
     setFormData({
       name: '',
       code: '',
-      unit: '',
       semester: '',
       year: '',
-      lecturer: ''
+      department: '',
+      programs: []
     });
     setOpenDialog(true);
   };
@@ -106,10 +187,13 @@ const CourseManagement = () => {
     setFormData({
       name: course.name,
       code: course.code,
-      unit: course.unit,
       semester: course.semester,
       year: course.year,
-      lecturer: course.lecturer?._id || ''
+      department: course.department._id,
+      programs: course.programs.map(p => ({
+        program: p.program._id,
+        lecturer: p.lecturer?._id || ''
+      }))
     });
     setOpenDialog(true);
   };
@@ -146,16 +230,60 @@ const CourseManagement = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formData)
       });
 
-      if (!response.ok) throw new Error('Failed to save course');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || 'Failed to save course');
+      }
 
-      setSuccess(selectedCourse ? 'Course updated successfully' : 'Course added successfully');
+      const data = await response.json();
+      setSuccess(data.msg);
       setOpenDialog(false);
       fetchCourses();
     } catch (err) {
-      setError('Failed to save course');
+      setError(err.message || 'Failed to save course');
+    }
+  };
+
+  const handleAddProgram = () => {
+    setFormData({
+      ...formData,
+      programs: [
+        ...formData.programs,
+        { program: '', lecturer: '' }
+      ]
+    });
+  };
+
+  const handleRemoveProgram = (index) => {
+    const newPrograms = formData.programs.filter((_, i) => i !== index);
+    setFormData({ ...formData, programs: newPrograms });
+  };
+
+  const handleProgramChange = (index, field, value) => {
+    const newPrograms = [...formData.programs];
+    newPrograms[index] = {
+      ...newPrograms[index],
+      [field]: value
+    };
+    setFormData({ ...formData, programs: newPrograms });
+  };
+
+  const handleDepartmentChange = async (event) => {
+    const deptId = event.target.value;
+    setSelectedDepartment(deptId);
+    setFormData(prev => ({
+      ...prev,
+      department: deptId,
+      programs: [] // Reset programs when department changes
+    }));
+    
+    if (deptId) {
+      await fetchLecturers(deptId);
+    } else {
+      setDepartmentLecturers([]);
     }
   };
 
@@ -189,10 +317,10 @@ const CourseManagement = () => {
             <TableRow>
               <TableCell>Code</TableCell>
               <TableCell>Name</TableCell>
-              <TableCell>Unit</TableCell>
+              <TableCell>Department</TableCell>
+              <TableCell>Programs</TableCell>
               <TableCell>Semester</TableCell>
               <TableCell>Year</TableCell>
-              <TableCell>Lecturer</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -201,10 +329,18 @@ const CourseManagement = () => {
               <TableRow key={course._id}>
                 <TableCell>{course.code}</TableCell>
                 <TableCell>{course.name}</TableCell>
-                <TableCell>{course.unit}</TableCell>
+                <TableCell>{course.department?.name}</TableCell>
+                <TableCell>
+                  {course.programs.map((prog, index) => (
+                    <Chip
+                      key={index}
+                      label={`${prog.program?.name} (${prog.lecturer?.name || 'No lecturer'})`}
+                      sx={{ m: 0.5 }}
+                    />
+                  ))}
+                </TableCell>
                 <TableCell>{course.semester}</TableCell>
                 <TableCell>{course.year}</TableCell>
-                <TableCell>{course.lecturer?.name || 'Not assigned'}</TableCell>
                 <TableCell>
                   <IconButton onClick={() => handleEditCourse(course)}>
                     <EditIcon />
@@ -219,74 +355,137 @@ const CourseManagement = () => {
         </Table>
       </TableContainer>
 
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+      <Dialog 
+        open={openDialog} 
+        onClose={() => setOpenDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>
           {selectedCourse ? 'Edit Course' : 'Add New Course'}
         </DialogTitle>
         <DialogContent>
           <Box component="form" sx={{ pt: 2 }}>
-            <TextField
-              fullWidth
-              label="Course Code"
-              value={formData.code}
-              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              margin="normal"
-              required
-            />
-            <TextField
-              fullWidth
-              label="Course Name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              margin="normal"
-              required
-            />
-            <TextField
-              fullWidth
-              label="Course Unit"
-              type="number"
-              value={formData.unit}
-              onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-              margin="normal"
-              required
-            />
-            <TextField
-              fullWidth
-              select
-              label="Semester"
-              value={formData.semester}
-              onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-              margin="normal"
-              required
-            >
-              <MenuItem value="1">First Semester</MenuItem>
-              <MenuItem value="2">Second Semester</MenuItem>
-            </TextField>
-            <TextField
-              fullWidth
-              label="Year"
-              value={formData.year}
-              onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-              margin="normal"
-              required
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Lecturer</InputLabel>
-              <Select
-                value={formData.lecturer}
-                onChange={(e) => setFormData({ ...formData, lecturer: e.target.value })}
-                label="Lecturer"
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Course Code"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Course Name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={formData.department}
+                    onChange={handleDepartmentChange}
+                    label="Department"
+                    required
+                  >
+                    {departments.map((dept) => (
+                      <MenuItem key={dept._id} value={dept._id}>
+                        {dept.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>Semester</InputLabel>
+                  <Select
+                    value={formData.semester}
+                    onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                    label="Semester"
+                  >
+                    <MenuItem value={1}>First Semester</MenuItem>
+                    <MenuItem value={2}>Second Semester</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Year"
+                  value={formData.year}
+                  onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                  required
+                />
+              </Grid>
+            </Grid>
+
+            <Box sx={{ mt: 3, mb: 2 }}>
+              <Typography variant="h6">Programs and Lecturers</Typography>
+              <Button
+                startIcon={<AddIcon />}
+                onClick={handleAddProgram}
+                sx={{ mt: 1 }}
               >
-                <MenuItem value="">
-                  <em>None</em>
-                </MenuItem>
-                {lecturers.map((lecturer) => (
-                  <MenuItem key={lecturer._id} value={lecturer._id}>
-                    {lecturer.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                Add Program
+              </Button>
+            </Box>
+
+            {formData.programs.map((prog, index) => (
+              <Box key={index} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 1 }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={5}>
+                    <FormControl fullWidth required>
+                      <InputLabel>Program</InputLabel>
+                      <Select
+                        value={prog.program}
+                        onChange={(e) => handleProgramChange(index, 'program', e.target.value)}
+                        label="Program"
+                      >
+                        {departmentPrograms.map((program) => (
+                          <MenuItem key={program._id} value={program._id}>
+                            {program.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={5}>
+                    <FormControl fullWidth margin="normal">
+                      <InputLabel>Lecturer</InputLabel>
+                      <Select
+                        value={prog.lecturer || ''}
+                        onChange={(e) => handleProgramChange(index, 'lecturer', e.target.value)}
+                        label="Lecturer"
+                      >
+                        <MenuItem value="">
+                          <em>None</em>
+                        </MenuItem>
+                        {departmentLecturers.map((lecturer) => (
+                          <MenuItem key={lecturer._id} value={lecturer._id}>
+                            {lecturer.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={2}>
+                    <Button
+                      color="error"
+                      onClick={() => handleRemoveProgram(index)}
+                    >
+                      Remove
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            ))}
           </Box>
         </DialogContent>
         <DialogActions>
