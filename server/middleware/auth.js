@@ -1,5 +1,5 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/User"); // Ensure User model is imported
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
 
 module.exports = (req, res, next) => {
   // Get token from header
@@ -21,7 +21,7 @@ module.exports = (req, res, next) => {
       role: decoded.role
     });
     
-    req.user = decoded;
+    req.user = decoded.user;
     next();
   } catch (err) {
     console.log('Token verification failed:', err.message);

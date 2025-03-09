@@ -3,6 +3,7 @@ const authMiddleware = require("../middleware/auth");
 const Attendance = require("../models/Attendance");
 const Session = require("../models/Session"); // ✅ Ensure session validation
 const router = express.Router();
+const Course = require('../models/Course');
 
 // ✅ Mark Attendance with Expiry Validation
 router.post("/mark", authMiddleware, async (req, res) => {
@@ -85,7 +86,7 @@ router.get("/lecturer", authMiddleware, async (req, res) => {
 // ✅ Helper function to calculate distance between two coordinates
 function getDistance(lat1, lon1, lat2, lon2) {
   const toRad = (angle) => (Math.PI / 180) * angle;
-  const R = 6371e3; // Earth’s radius in meters
+  const R = 6371e3; // Earth's radius in meters
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
@@ -94,5 +95,132 @@ function getDistance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c; // Distance in meters
 }
+
+// @route   GET api/attendance/stats
+// @desc    Get lecturer's attendance statistics
+// @access  Private
+router.get('/stats', authMiddleware, async (req, res) => {
+  try {
+    const stats = await Session.aggregate([
+      { $match: { lecturerId: req.user.id } },
+      {
+        $group: {
+          _id: null,
+          totalSessions: { $sum: 1 },
+          totalStudents: { $sum: '$totalStudents' },
+          totalPresent: { $sum: '$presentCount' }
+        }
+      }
+    ]);
+
+    const result = stats[0] || { totalSessions: 0, totalStudents: 0, totalPresent: 0 };
+    const averageAttendance = result.totalStudents > 0 
+      ? Math.round((result.totalPresent / result.totalStudents) * 100) 
+      : 0;
+
+    res.json({
+      totalSessions: result.totalSessions,
+      totalStudents: result.totalStudents,
+      averageAttendance
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/attendance/sessions
+// @desc    Get filtered session records
+// @access  Private
+router.get('/sessions', authMiddleware, async (req, res) => {
+  try {
+    const { program, course, department, sessionDate, timeFrame } = req.query;
+    let query = { lecturerId: req.user.id };
+
+    if (program) query.program = program;
+    if (course) query.courseId = course;
+    if (department) query.department = department;
+    if (sessionDate) {
+      const date = new Date(sessionDate);
+      query.createdAt = {
+        $gte: date,
+        $lt: new Date(date.setDate(date.getDate() + 1))
+      };
+    }
+    if (timeFrame === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      query.createdAt = { $gte: today };
+    }
+    if (timeFrame === 'week') {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      query.createdAt = { $gte: weekAgo };
+    }
+
+    const sessions = await Session.find(query)
+      .populate('courseId', 'name')
+      .sort({ createdAt: -1 });
+
+    res.json(sessions);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/attendance/session/:id
+// @desc    Get detailed session information
+// @access  Private
+router.get('/session/:id', authMiddleware, async (req, res) => {
+  try {
+    const session = await Session.findById(req.params.id)
+      .populate('courseId', 'name')
+      .populate('attendees.studentId', 'name email');
+
+    if (!session) {
+      return res.status(404).json({ msg: 'Session not found' });
+    }
+
+    if (session.lecturerId.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'Not authorized' });
+    }
+
+    res.json(session);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/attendance/export
+// @desc    Export attendance records as JSON
+// @access  Private
+router.get('/export', authMiddleware, async (req, res) => {
+  try {
+    const sessions = await Session.find({ lecturerId: req.user.id })
+      .populate('courseId', 'name')
+      .populate('attendees.studentId', 'name email');
+
+    const exportData = sessions.map(session => ({
+      date: session.createdAt,
+      course: session.courseId.name,
+      program: session.program,
+      totalStudents: session.totalStudents,
+      presentCount: session.presentCount,
+      attendees: session.attendees.map(a => ({
+        student: a.studentId.name,
+        email: a.studentId.email,
+        status: a.status,
+        checkInTime: a.checkInTime
+      }))
+    }));
+
+    res.json(exportData);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
 
 module.exports = router;

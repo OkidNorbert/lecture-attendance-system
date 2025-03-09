@@ -3,6 +3,9 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const adminRoutes = require('./routes/admin');
+const trendsRoutes = require('./routes/trends');
+const http = require('http');
+const setupWebSocket = require('./websocket');
 
 // ✅ Debugging: Log MONGO_URI
 console.log("MONGODB_URI:", process.env.MONGODB_URI);
@@ -14,6 +17,9 @@ if (!process.env.MONGODB_URI) {
 }
 
 const app = express();
+const server = http.createServer(app);
+const wss = setupWebSocket(server);
+
 // Middleware
 app.use(express.json());
 app.use(cors({
@@ -33,6 +39,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/qrcode", qrRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/attendance/trends', trendsRoutes);
 
 // Default route
 app.get("/", (req, res) => {
@@ -61,13 +68,21 @@ app.get('/test', (req, res) => {
   res.json({ message: "Server is running!" });
 });
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ msg: 'Something broke!' });
+});
+
 // ✅ Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
   // Close server & exit process
-  app.close(() => process.exit(1));
+  server.close(() => process.exit(1));
 });
