@@ -1019,4 +1019,58 @@ router.delete("/faculties/:id", authMiddleware, adminMiddleware, async (req, res
   }
 });
 
+// @route   GET api/admin/sessions
+// @desc    Get all sessions
+// @access  Private (Admin only)
+router.get('/sessions', authMiddleware, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
+    const sessions = await Session.find()
+      .populate({
+        path: 'lecturerId',
+        select: 'name email',
+        model: 'User'
+      })
+      .populate({
+        path: 'courseId',
+        select: 'name code',
+        model: 'Course'
+      })
+      .sort({ createdAt: -1 });
+
+    if (!sessions) {
+      return res.status(404).json({ msg: 'No sessions found' });
+    }
+
+    res.json(sessions);
+  } catch (err) {
+    console.error('Admin sessions error:', err);
+    res.status(500).json({ 
+      msg: 'Server Error',
+      error: err.message 
+    });
+  }
+});
+
+// @route   GET api/admin/users
+// @desc    Get all users
+// @access  Private (Admin only)
+router.get('/users', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
+    const users = await User.find().select('-password');
+    res.json(users);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 module.exports = router;

@@ -45,11 +45,11 @@ router.post("/register", async (req, res) => {
 // @desc    Authenticate user & get token
 // @access  Public
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-
   try {
-    // Check if user exists
-    const user = await User.findOne({ email });
+    const { email, password } = req.body;
+
+    // Find user by email
+    let user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
@@ -60,14 +60,13 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // Create and return JWT token
+    // Create JWT payload - Fix the structure here
     const payload = {
-      user: {
-        id: user.id,
-        role: user.role
-      }
+      id: user._id,    // Changed from user.id to id
+      role: user.role  // Changed from user.role to role
     };
 
+    // Sign token
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
@@ -76,8 +75,9 @@ router.post('/login', async (req, res) => {
         if (err) throw err;
         res.json({
           token,
+          role: user.role,
           user: {
-            id: user.id,
+            id: user._id,
             name: user.name,
             email: user.email,
             role: user.role
@@ -85,8 +85,9 @@ router.post('/login', async (req, res) => {
         });
       }
     );
+
   } catch (err) {
-    console.error('Login error:', err.message);
+    console.error('Server error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });

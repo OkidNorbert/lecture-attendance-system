@@ -1,52 +1,32 @@
 const mongoose = require('mongoose');
 
-const courseSchema = new mongoose.Schema({
+const CourseSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true
   },
   code: {
     type: String,
-    required: true
+    required: true,
+    unique: true
   },
-  semester: {
-    type: Number,
-    required: true
-  },
-  year: {
+  program: {
     type: String,
     required: true
   },
-  department: {
+  lecturerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Department',
+    ref: 'User',
     required: true
   },
-  programs: [{
-    program: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Program'
-    },
-    lecturer: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }
-  }],
   students: [{
-    student: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    program: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Program'
-    }
-  }]
-}, {
-  timestamps: true
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
 });
 
-// Compound index to ensure unique course code per department
-courseSchema.index({ code: 1, department: 1 }, { unique: true });
-
-module.exports = mongoose.model('Course', courseSchema); 
+module.exports = mongoose.model('Course', CourseSchema); 

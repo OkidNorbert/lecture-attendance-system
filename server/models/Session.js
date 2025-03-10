@@ -1,34 +1,61 @@
 const mongoose = require("mongoose");
 
-const sessionSchema = new mongoose.Schema({
-  course: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Course',
-    required: true
-  },
-  lecturer: {
+const SessionSchema = new mongoose.Schema({
+  lecturerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  startTime: {
-    type: Date,
+  courseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
     required: true
   },
-  expiryTime: {
-    type: Date,
-    required: true
-  },
-  code: {
+  program: {
     type: String,
     required: true
   },
+  totalStudents: {
+    type: Number,
+    default: 0
+  },
+  presentCount: {
+    type: Number,
+    default: 0
+  },
+  status: {
+    type: String,
+    enum: ['active', 'completed', 'cancelled'],
+    default: 'active'
+  },
+  attendees: [{
+    studentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    checkInTime: Date,
+    status: {
+      type: String,
+      enum: ['present', 'late', 'absent'],
+      default: 'absent'
+    },
+    location: {
+      latitude: Number,
+      longitude: Number
+    }
+  }],
   location: {
     latitude: Number,
     longitude: Number
+  },
+  radius: {
+    type: Number,
+    default: 50 // radius in meters
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-module.exports = mongoose.model("Session", sessionSchema);
+module.exports = mongoose.model("Session", SessionSchema);

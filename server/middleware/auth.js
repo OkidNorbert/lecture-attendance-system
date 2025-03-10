@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-module.exports = (req, res, next) => {
+module.exports = function(req, res, next) {
   // Get token from header
   const token = req.header('Authorization')?.replace('Bearer ', '');
   
@@ -21,7 +21,11 @@ module.exports = (req, res, next) => {
       role: decoded.role
     });
     
-    req.user = decoded.user;
+    // Add user from payload
+    req.user = {
+      id: decoded.id,     // Match the new payload structure
+      role: decoded.role  // Match the new payload structure
+    };
     next();
   } catch (err) {
     console.log('Token verification failed:', err.message);

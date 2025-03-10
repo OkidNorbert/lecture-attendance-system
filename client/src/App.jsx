@@ -1,7 +1,6 @@
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminDashboard from './components/admin/AdminDashboard';
 import LecturerDashboard from './pages/LecturerDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import AttendanceHistory from './pages/AttendanceHistory';
@@ -14,51 +13,17 @@ import SessionDetails from './pages/SessionDetails';
 function App() {
   return (
     <Routes>
+      {/* Home/Login route */}
       <Route path="/" element={<Home />} />
-      
-      {/* Admin Routes */}
-      <Route 
-        path="/admin/*" 
-        element={
-          <AdminRoute>
-            <AdminDashboard />
-          </AdminRoute>
-        }
-      />
+      <Route path="/login" element={<Navigate to="/" replace />} />
 
-      {/* Lecturer Routes */}
-      <Route 
-        path="/lecturer/*" 
-        element={
-          <LecturerRoute>
-            <LecturerDashboard />
-          </LecturerRoute>
-        }
-      />
+      {/* Dashboard routes */}
+      <Route path="/admin/*" element={<AdminDashboard />} />
+      <Route path="/lecturer" element={<LecturerDashboard />} />
+      <Route path="/student" element={<StudentDashboard />} />
 
-      {/* Shared Routes */}
-      <Route path="/attendance-history" element={<AttendanceHistory />} />
-      <Route path="/generate-qr" element={<GenerateQR />} />
-      <Route path="/dashboard" element={<LecturerDashboard />} />
-
-      {/* Student Routes */}
-      <Route 
-        path="/student/*" 
-        element={
-          <StudentRoute>
-            <StudentDashboard />
-          </StudentRoute>
-        }
-      />
-
-      <Route 
-        path="/session-details/:id" 
-        element={
-          <LecturerRoute>
-            <SessionDetails />
-          </LecturerRoute>
-        }
-      />
+      {/* Catch all route - redirect to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

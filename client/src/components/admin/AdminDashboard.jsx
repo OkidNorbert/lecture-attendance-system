@@ -4,20 +4,14 @@ import {
   Grid,
   Paper,
   Typography,
-  Button,
   Box,
   Tab,
   Tabs,
-  IconButton,
 } from '@mui/material';
 import {
   People as PeopleIcon,
   School as SchoolIcon,
   Assessment as AssessmentIcon,
-  PersonAdd as PersonAddIcon,
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Business as BusinessIcon,
 } from '@mui/icons-material';
 
 // Import sub-components
@@ -25,8 +19,6 @@ import UserManagement from './UserManagement';
 import CourseManagement from './CourseManagement';
 import AttendanceMonitoring from './AttendanceMonitoring';
 import Reports from './Reports';
-import DepartmentManagement from './DepartmentManagement';
-import FacultyManagement from './FacultyManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -35,6 +27,27 @@ const AdminDashboard = () => {
     totalCourses: 0,
     activeAttendance: 0,
   });
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
+  const fetchDashboardStats = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/dashboard-stats', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch dashboard stats');
+      const data = await response.json();
+      setStats(data);
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -83,8 +96,6 @@ const AdminDashboard = () => {
           textColor="primary"
           variant="fullWidth"
         >
-          <Tab label="Faculties" icon={<BusinessIcon />} />
-          <Tab label="Departments" icon={<BusinessIcon />} />
           <Tab label="User Management" icon={<PeopleIcon />} />
           <Tab label="Course Management" icon={<SchoolIcon />} />
           <Tab label="Attendance" icon={<AssessmentIcon />} />
@@ -93,12 +104,10 @@ const AdminDashboard = () => {
 
         {/* Tab Panels */}
         <Box sx={{ p: 3 }}>
-          {activeTab === 0 && <FacultyManagement />}
-          {activeTab === 1 && <DepartmentManagement />}
-          {activeTab === 2 && <UserManagement />}
-          {activeTab === 3 && <CourseManagement />}
-          {activeTab === 4 && <AttendanceMonitoring />}
-          {activeTab === 5 && <Reports />}
+          {activeTab === 0 && <UserManagement />}
+          {activeTab === 1 && <CourseManagement />}
+          {activeTab === 2 && <AttendanceMonitoring />}
+          {activeTab === 3 && <Reports />}
         </Box>
       </Paper>
     </Container>

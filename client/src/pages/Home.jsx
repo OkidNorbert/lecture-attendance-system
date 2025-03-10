@@ -17,11 +17,12 @@ import {
   Lock
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '../utils/axios';
 
 const Home = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -30,16 +31,54 @@ const Home = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/login', formData);
-      localStorage.setItem('token', res.data.token);
-      localStorage.setItem('role', res.data.role);
-      
-      if (res.data.role === 'admin') navigate('/admin');
-      else if (res.data.role === 'lecturer') navigate('/lecturer');
-      else navigate('/student');
+      console.log('Attempting login with:', formData); // Log login attempt
+
+      const response = await axios.post('/api/auth/login', formData);
+      console.log('Server response:', response.data); // Log server response
+
+      if (!response.data || !response.data.token) {
+        throw new Error('Invalid response structure');
+      }
+
+      // Store auth data
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('role', response.data.role);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      // Navigate based on role
+      switch (response.data.role) {
+        case 'admin':
+          navigate('/admin');
+          break;
+        case 'lecturer':
+          navigate('/lecturer');
+          break;
+        case 'student':
+          navigate('/student');
+          break;
+        default:
+          throw new Error(`Invalid role: ${response.data.role}`);
+      }
     } catch (err) {
-      setError(err.response?.data?.msg || 'Login failed');
+      console.error('Login error:', err);
+      
+      // Handle different types of errors
+      if (err.response) {
+        // Server responded with error
+        setError(err.response.data.msg || 'Server error occurred');
+      } else if (err.request) {
+        // Request made but no response
+        setError('No response from server. Please try again.');
+      } else {
+        // Other errors
+        setError(err.message || 'An error occurred during login');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,7 +146,7 @@ const Home = () => {
               required
               fullWidth
               name="email"
-              label="Email"
+              label="Email Address"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -120,7 +159,6 @@ const Home = () => {
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
                   '&:hover fieldset': {
                     borderColor: '#1976d2',
                   },
@@ -128,14 +166,8 @@ const Home = () => {
                     borderColor: '#1976d2',
                   },
                 },
-                '& .MuiInputLabel-root': {
-                  color: '#666',
-                  '&.Mui-focused': {
-                    color: '#1976d2',
-                  },
-                },
-                '& .MuiInputBase-input': {
-                  color: '#2c3e50',
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#1976d2',
                 },
               }}
             />
@@ -167,7 +199,6 @@ const Home = () => {
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
                   '&:hover fieldset': {
                     borderColor: '#1976d2',
                   },
@@ -175,14 +206,8 @@ const Home = () => {
                     borderColor: '#1976d2',
                   },
                 },
-                '& .MuiInputLabel-root': {
-                  color: '#666',
-                  '&.Mui-focused': {
-                    color: '#1976d2',
-                  },
-                },
-                '& .MuiInputBase-input': {
-                  color: '#2c3e50',
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#1976d2',
                 },
               }}
             />
@@ -197,6 +222,7 @@ const Home = () => {
               type="submit"
               fullWidth
               variant="contained"
+              disabled={loading}
               sx={{
                 mt: 2,
                 mb: 2,
@@ -210,7 +236,7 @@ const Home = () => {
                 boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
               }}
             >
-              Sign In
+              {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </Box>
 
