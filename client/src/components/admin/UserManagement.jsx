@@ -36,6 +36,7 @@ const UserManagement = () => {
     role: 'student',
     courses: [],
   });
+  const [tempPassword, setTempPassword] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -43,15 +44,15 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      console.log('Fetching users...'); // Debug log
-      const response = await fetch('http://localhost:5000/api/admin/users', {  // Changed port to 5000
+      console.log('Fetching users...');
+      const response = await fetch('http://localhost:5000/api/admin/users', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json'
         }
       });
       
-      console.log('Response status:', response.status); // Debug log
+      console.log('Response status:', response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -60,7 +61,7 @@ const UserManagement = () => {
       }
       
       const data = await response.json();
-      console.log('Users data:', data); // Debug log
+      console.log('Users data:', data);
       setUsers(data);
     } catch (err) {
       console.error('Error in fetchUsers:', err);
@@ -93,7 +94,7 @@ const UserManagement = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        const response = await fetch(`http://localhost:5000/api/admin/remove-user/${userId}`, {  // Changed port to 5000
+        const response = await fetch(`http://localhost:5000/api/admin/remove-user/${userId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
@@ -108,7 +109,7 @@ const UserManagement = () => {
 
         const data = await response.json();
         setSuccess(data.msg || 'User deleted successfully');
-        fetchUsers(); // Refresh the user list
+        fetchUsers();
       } catch (err) {
         console.error('Delete error:', err);
         setError(err.message || 'Failed to delete user');
@@ -147,9 +148,6 @@ const UserManagement = () => {
         ? `http://localhost:5000/api/admin/users/${selectedUser._id}`
         : 'http://localhost:5000/api/admin/register-lecturer';
       
-      console.log('Submitting to:', url);
-      console.log('Form data:', formData);
-
       const response = await fetch(url, {
         method: selectedUser ? 'PUT' : 'POST',
         headers: {
@@ -159,15 +157,20 @@ const UserManagement = () => {
         body: JSON.stringify(formData),
       });
 
-      console.log('Response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.msg || 'Failed to save user');
       }
 
       const data = await response.json();
-      setSuccess(data.msg || (selectedUser ? 'User updated successfully' : 'User created successfully'));
+      
+      if (data.tempPassword) {
+        setTempPassword(data.tempPassword);
+        setSuccess(`User registered successfully. Temporary password: ${data.tempPassword}`);
+      } else {
+        setSuccess('User updated successfully');
+      }
+      
       setOpenDialog(false);
       fetchUsers();
     } catch (err) {
@@ -185,8 +188,22 @@ const UserManagement = () => {
       )}
       
       {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-          {success}
+        <Alert 
+          severity="success" 
+          sx={{ mb: 2 }} 
+          onClose={() => {
+            setSuccess('');
+            setTempPassword('');
+          }}
+        >
+          <div>
+            {success}
+            {tempPassword && (
+              <div style={{ marginTop: '10px', fontWeight: 'bold' }}>
+                Please save this temporary password: {tempPassword}
+              </div>
+            )}
+          </div>
         </Alert>
       )}
 

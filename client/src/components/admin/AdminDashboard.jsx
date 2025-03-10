@@ -12,6 +12,7 @@ import {
   People as PeopleIcon,
   School as SchoolIcon,
   Assessment as AssessmentIcon,
+  Business as BusinessIcon,
 } from '@mui/icons-material';
 
 // Import sub-components
@@ -19,6 +20,8 @@ import UserManagement from './UserManagement';
 import CourseManagement from './CourseManagement';
 import AttendanceMonitoring from './AttendanceMonitoring';
 import Reports from './Reports';
+import DepartmentManagement from './DepartmentManagement';
+import FacultyManagement from './FacultyManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -96,6 +99,8 @@ const AdminDashboard = () => {
           textColor="primary"
           variant="fullWidth"
         >
+          <Tab label="Faculties" icon={<BusinessIcon />} />
+          <Tab label="Departments" icon={<BusinessIcon />} />
           <Tab label="User Management" icon={<PeopleIcon />} />
           <Tab label="Course Management" icon={<SchoolIcon />} />
           <Tab label="Attendance" icon={<AssessmentIcon />} />
@@ -104,10 +109,12 @@ const AdminDashboard = () => {
 
         {/* Tab Panels */}
         <Box sx={{ p: 3 }}>
-          {activeTab === 0 && <UserManagement />}
-          {activeTab === 1 && <CourseManagement />}
-          {activeTab === 2 && <AttendanceMonitoring />}
-          {activeTab === 3 && <Reports />}
+          {activeTab === 0 && <FacultyManagement />}
+          {activeTab === 1 && <DepartmentManagement />}
+          {activeTab === 2 && <UserManagement />}
+          {activeTab === 3 && <CourseManagement />}
+          {activeTab === 4 && <AttendanceMonitoring />}
+          {activeTab === 5 && <Reports />}
         </Box>
       </Paper>
     </Container>

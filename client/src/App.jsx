@@ -28,4 +28,49 @@ function App() {
   );
 }
 
+// function App() {
+//   return (
+//     <Routes>
+//       <Route path="/" element={<Home />} />
+      
+//       {/* Admin Routes */}
+//       <Route 
+//         path="/admin/*" 
+//         element={
+//           <AdminRoute>
+//             <AdminDashboard />
+//           </AdminRoute>
+//         }
+//       />
+
+//       {/* Lecturer Routes */}
+//       <Route 
+//         path="/lecturer/*" 
+//         element={
+//           <LecturerRoute>
+//             <LecturerDashboard />
+//           </LecturerRoute>
+//         }
+//       />
+
+//       {/* Shared Routes */}
+//       <Route path="/attendance-history" element={<AttendanceHistory />} />
+//       <Route path="/generate-qr" element={<GenerateQR />} />
+//       <Route path="/dashboard" element={<LecturerDashboard />} />
+
+//       {/* Student Routes */}
+//       <Route 
+//         path="/student/*" 
+//         element={
+//           <StudentRoute>
+//             <StudentDashboard />
+//           </StudentRoute>
+//         }
+//       />
+//     </Routes>
+//   );
+// }
+
+
+
 export default App; 
