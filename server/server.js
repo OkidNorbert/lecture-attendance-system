@@ -1,7 +1,7 @@
 require("dotenv").config(); // ✅ Load environment variables first
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
+const connectDB = require('./config/db');
 const adminRoutes = require('./routes/admin');
 const trendsRoutes = require('./routes/trends');
 const http = require('http');
@@ -46,21 +46,7 @@ app.get("/", (req, res) => {
   res.send("Lecture Attendance System Backend Running...");
 });
 
-// ✅ Connect to MongoDB
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-    });
-    console.log("✅ Connected to MongoDB");
-  } catch (err) {
-    console.error("❌ MongoDB connection error:", err);
-    process.exit(1); // Exit process with failure
-  }
-};
+// Connect to MongoDB
 connectDB();
 
 // Test route
