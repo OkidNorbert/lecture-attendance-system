@@ -19,6 +19,7 @@ import {
   Logout as LogoutIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 
 // Import sub-components
 import UserManagement from './UserManagement';
@@ -181,6 +182,9 @@ const AdminDashboard = () => {
           {activeTab === 5 && <Reports />}
         </Box>
       </Paper>
+
+      {/* Add this to your navigation links */}
+      <Link to="/admin/programs">Program Management</Link>
     </Container>
   );
 };

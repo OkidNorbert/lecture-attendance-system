@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
   Box,
+  Button,
+  TextField,
+  Typography,
   Paper,
   Table,
   TableBody,
@@ -8,308 +12,254 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Button,
-  IconButton,
+  Alert,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  Alert,
+  IconButton,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
-  Grid,
-  Chip,
-  Typography,
-  CircularProgress
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 
 const CourseManagement = () => {
   const [courses, setCourses] = useState([]);
+  const [faculties, setFaculties] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [programs, setPrograms] = useState([]);
-  const [lecturers, setLecturers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [tabValue, setTabValue] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
     code: '',
+    facultyId: '',
+    departmentId: '',
+    programId: '',
+    description: '',
+    credits: '',
     semester: '',
-    year: '',
-    department: '',
-    programs: []
+    academicYear: '',
+    status: 'active'
   });
-  const [departmentPrograms, setDepartmentPrograms] = useState([]);
-  const [selectedDepartment, setSelectedDepartment] = useState('');
-  const [departmentLecturers, setDepartmentLecturers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(false);
-  const [loadingLecturers, setLoadingLecturers] = useState(false);
 
   useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        setInitialLoading(true);
-        await Promise.all([
-          fetchCourses(),
-          fetchDepartments()
-        ]);
-      } catch (err) {
-        console.error('Error fetching initial data:', err);
-        setError('Failed to load initial data');
-      } finally {
-        setInitialLoading(false);
-      }
-    };
-
     fetchInitialData();
   }, []);
 
-  useEffect(() => {
-    if (formData.department) {
-      fetchProgramsByDepartment(formData.department);
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true);
+      await Promise.all([
+        fetchCourses(),
+        fetchFaculties(),
+        fetchDepartments(),
+        fetchPrograms()
+      ]);
+    } catch (err) {
+      console.error('Error fetching initial data:', err);
+      setError('Failed to load initial data');
+    } finally {
+      setLoading(false);
     }
-  }, [formData.department]);
-
-  useEffect(() => {
-    if (selectedDepartment) {
-      fetchLecturers(selectedDepartment);
-    }
-  }, [selectedDepartment]);
+  };
 
   const fetchCourses = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/courses', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        }
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/admin/courses', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (!response.ok) throw new Error('Failed to fetch courses');
-      const data = await response.json();
-      setCourses(data);
+      setCourses(response.data);
     } catch (err) {
+      console.error('Error fetching courses:', err);
       setError('Failed to load courses');
+    }
+  };
+
+  const fetchFaculties = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/admin/faculties', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setFaculties(response.data);
+    } catch (err) {
+      console.error('Error fetching faculties:', err);
+      setError('Failed to load faculties');
     }
   };
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/departments', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        }
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/admin/departments', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (!response.ok) throw new Error('Failed to fetch departments');
-      const data = await response.json();
-      setDepartments(data);
+      setDepartments(response.data);
     } catch (err) {
+      console.error('Error fetching departments:', err);
       setError('Failed to load departments');
     }
   };
 
-  const fetchProgramsByDepartment = async (departmentId) => {
+  const fetchPrograms = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/departments/${departmentId}/programs`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        }
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/admin/programs', {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (!response.ok) throw new Error('Failed to fetch programs');
-      const data = await response.json();
-      setDepartmentPrograms(data);
+      setPrograms(response.data);
     } catch (err) {
+      console.error('Error fetching programs:', err);
       setError('Failed to load programs');
-    }
-  };
-
-  const fetchLecturers = async (departmentId) => {
-    if (!departmentId) return;
-    
-    try {
-      setLoadingLecturers(true);
-      setError(''); // Clear any previous errors
-      
-      const response = await fetch(
-        `http://localhost:5000/api/admin/departments/${departmentId}/lecturers`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch lecturers: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setDepartmentLecturers(data);
-    } catch (err) {
-      console.error('Error fetching lecturers:', err);
-      setError('Failed to load lecturers for this department');
-      setDepartmentLecturers([]); // Reset lecturers on error
-    } finally {
-      setLoadingLecturers(false);
-    }
-  };
-
-  const handleAddCourse = () => {
-    setSelectedCourse(null);
-    setFormData({
-      name: '',
-      code: '',
-      semester: '',
-      year: '',
-      department: '',
-      programs: []
-    });
-    setOpenDialog(true);
-  };
-
-  const handleEditCourse = (course) => {
-    setSelectedCourse(course);
-    setFormData({
-      name: course.name,
-      code: course.code,
-      semester: course.semester,
-      year: course.year,
-      department: course.department._id,
-      programs: course.programs.map(p => ({
-        program: p.program._id,
-        lecturer: p.lecturer?._id || ''
-      }))
-    });
-    setOpenDialog(true);
-  };
-
-  const handleDeleteCourse = async (courseId) => {
-    if (window.confirm('Are you sure you want to delete this course?')) {
-      try {
-        const response = await fetch(`http://localhost:5000/api/admin/courses/${courseId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-          }
-        });
-
-        if (!response.ok) throw new Error('Failed to delete course');
-        setSuccess('Course deleted successfully');
-        fetchCourses();
-      } catch (err) {
-        setError('Failed to delete course');
-      }
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const url = selectedCourse
-        ? `http://localhost:5000/api/admin/courses/${selectedCourse._id}`
-        : 'http://localhost:5000/api/admin/courses';
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
 
-      const response = await fetch(url, {
-        method: selectedCourse ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        },
-        body: JSON.stringify(formData)
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:5000/api/admin/courses',
+        formData,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      setCourses([...courses, response.data]);
+      setSuccessMessage('Course created successfully');
+      setOpenDialog(false);
+      resetForm();
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Error creating course');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/courses/${selectedCourse._id}`,
+        formData,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      setCourses(courses.map(course => 
+        course._id === selectedCourse._id ? response.data : course
+      ));
+      setSuccessMessage('Course updated successfully');
+      setOpenDialog(false);
+      resetForm();
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Error updating course');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this course?')) return;
+
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`http://localhost:5000/api/admin/courses/${id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.msg || 'Failed to save course');
-      }
-
-      const data = await response.json();
-      setSuccess(data.msg);
-      setOpenDialog(false);
-      fetchCourses();
+      setCourses(courses.filter(course => course._id !== id));
+      setSuccessMessage('Course deleted successfully');
     } catch (err) {
-      setError(err.message || 'Failed to save course');
+      setError(err.response?.data?.msg || 'Error deleting course');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAddProgram = () => {
+  const resetForm = () => {
     setFormData({
-      ...formData,
-      programs: [
-        ...formData.programs,
-        { program: '', lecturer: '' }
-      ]
+      name: '',
+      code: '',
+      facultyId: '',
+      departmentId: '',
+      programId: '',
+      description: '',
+      credits: '',
+      semester: '',
+      academicYear: '',
+      status: 'active'
     });
+    setSelectedCourse(null);
   };
 
-  const handleRemoveProgram = (index) => {
-    const newPrograms = formData.programs.filter((_, i) => i !== index);
-    setFormData({ ...formData, programs: newPrograms });
-  };
-
-  const handleProgramChange = (index, field, value) => {
-    const newPrograms = [...formData.programs];
-    newPrograms[index] = {
-      ...newPrograms[index],
-      [field]: value
-    };
-    setFormData({ ...formData, programs: newPrograms });
-  };
-
-  const handleDepartmentChange = async (event) => {
-    const deptId = event.target.value;
-    setSelectedDepartment(deptId);
-    setFormData(prev => ({
-      ...prev,
-      department: deptId,
-      programs: [] // Reset programs when department changes
-    }));
-    
-    if (deptId) {
-      await fetchLecturers(deptId);
-    } else {
-      setDepartmentLecturers([]);
-    }
+  const handleEdit = (course) => {
+    setSelectedCourse(course);
+    setFormData({
+      name: course.name,
+      code: course.code,
+      facultyId: course.facultyId._id,
+      departmentId: course.departmentId._id,
+      programId: course.programId._id,
+      description: course.description,
+      credits: course.credits,
+      semester: course.semester,
+      academicYear: course.academicYear,
+      status: course.status
+    });
+    setOpenDialog(true);
   };
 
   return (
     <Box sx={{ p: 3 }}>
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-      
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-          {success}
-        </Alert>
-      )}
+      <Typography variant="h4" sx={{ mb: 3 }}>
+        Course Management
+      </Typography>
 
-      <Box sx={{ mb: 2 }}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddCourse}
-        >
-          Add New Course
-        </Button>
-      </Box>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
+
+      <Button
+        variant="contained"
+        startIcon={<AddIcon />}
+        onClick={() => {
+          resetForm();
+          setOpenDialog(true);
+        }}
+        sx={{ mb: 3 }}
+      >
+        Add Course
+      </Button>
 
       <TableContainer component={Paper}>
         <Table>
@@ -317,10 +267,11 @@ const CourseManagement = () => {
             <TableRow>
               <TableCell>Code</TableCell>
               <TableCell>Name</TableCell>
+              <TableCell>Faculty</TableCell>
               <TableCell>Department</TableCell>
-              <TableCell>Programs</TableCell>
-              <TableCell>Semester</TableCell>
-              <TableCell>Year</TableCell>
+              <TableCell>Program</TableCell>
+              <TableCell>Credits</TableCell>
+              <TableCell>Status</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -329,23 +280,16 @@ const CourseManagement = () => {
               <TableRow key={course._id}>
                 <TableCell>{course.code}</TableCell>
                 <TableCell>{course.name}</TableCell>
-                <TableCell>{course.department?.name}</TableCell>
+                <TableCell>{course.facultyId?.name}</TableCell>
+                <TableCell>{course.departmentId?.name}</TableCell>
+                <TableCell>{course.programId?.name}</TableCell>
+                <TableCell>{course.credits}</TableCell>
+                <TableCell>{course.status}</TableCell>
                 <TableCell>
-                  {course.programs.map((prog, index) => (
-                    <Chip
-                      key={index}
-                      label={`${prog.program?.name} (${prog.lecturer?.name || 'No lecturer'})`}
-                      sx={{ m: 0.5 }}
-                    />
-                  ))}
-                </TableCell>
-                <TableCell>{course.semester}</TableCell>
-                <TableCell>{course.year}</TableCell>
-                <TableCell>
-                  <IconButton onClick={() => handleEditCourse(course)}>
+                  <IconButton onClick={() => handleEdit(course)} size="small">
                     <EditIcon />
                   </IconButton>
-                  <IconButton onClick={() => handleDeleteCourse(course._id)}>
+                  <IconButton onClick={() => handleDelete(course._id)} size="small" color="error">
                     <DeleteIcon />
                   </IconButton>
                 </TableCell>
@@ -355,143 +299,133 @@ const CourseManagement = () => {
         </Table>
       </TableContainer>
 
-      <Dialog 
-        open={openDialog} 
-        onClose={() => setOpenDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>
-          {selectedCourse ? 'Edit Course' : 'Add New Course'}
+          {selectedCourse ? 'Edit Course' : 'Add Course'}
+          <IconButton
+            onClick={() => setOpenDialog(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
-        <DialogContent>
-          <Box component="form" sx={{ pt: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Course Code"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Course Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth margin="normal">
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={formData.department}
-                    onChange={handleDepartmentChange}
-                    label="Department"
-                    required
-                  >
-                    {departments.map((dept) => (
-                      <MenuItem key={dept._id} value={dept._id}>
-                        {dept.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Semester</InputLabel>
-                  <Select
-                    value={formData.semester}
-                    onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                    label="Semester"
-                  >
-                    <MenuItem value={1}>First Semester</MenuItem>
-                    <MenuItem value={2}>Second Semester</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Year"
-                  value={formData.year}
-                  onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-                  required
-                />
-              </Grid>
-            </Grid>
-
-            <Box sx={{ mt: 3, mb: 2 }}>
-              <Typography variant="h6">Programs and Lecturers</Typography>
-              <Button
-                startIcon={<AddIcon />}
-                onClick={handleAddProgram}
-                sx={{ mt: 1 }}
+        <DialogContent dividers>
+          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+            <TextField
+              label="Course Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              fullWidth
+            />
+            <TextField
+              label="Course Code"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              required
+              fullWidth
+            />
+            <FormControl fullWidth required>
+              <InputLabel>Faculty</InputLabel>
+              <Select
+                value={formData.facultyId}
+                label="Faculty"
+                onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
               >
-                Add Program
-              </Button>
-            </Box>
-
-            {formData.programs.map((prog, index) => (
-              <Box key={index} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 1 }}>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} md={5}>
-                    <FormControl fullWidth required>
-                      <InputLabel>Program</InputLabel>
-                      <Select
-                        value={prog.program}
-                        onChange={(e) => handleProgramChange(index, 'program', e.target.value)}
-                        label="Program"
-                      >
-                        {departmentPrograms.map((program) => (
-                          <MenuItem key={program._id} value={program._id}>
-                            {program.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={5}>
-                    <FormControl fullWidth margin="normal">
-                      <InputLabel>Lecturer</InputLabel>
-                      <Select
-                        value={prog.lecturer || ''}
-                        onChange={(e) => handleProgramChange(index, 'lecturer', e.target.value)}
-                        label="Lecturer"
-                      >
-                        <MenuItem value="">
-                          <em>None</em>
-                        </MenuItem>
-                        {departmentLecturers.map((lecturer) => (
-                          <MenuItem key={lecturer._id} value={lecturer._id}>
-                            {lecturer.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={2}>
-                    <Button
-                      color="error"
-                      onClick={() => handleRemoveProgram(index)}
-                    >
-                      Remove
-                    </Button>
-                  </Grid>
-                </Grid>
-              </Box>
-            ))}
+                {faculties.map((faculty) => (
+                  <MenuItem key={faculty._id} value={faculty._id}>
+                    {faculty.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth required>
+              <InputLabel>Department</InputLabel>
+              <Select
+                value={formData.departmentId}
+                label="Department"
+                onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+              >
+                {departments.map((department) => (
+                  <MenuItem key={department._id} value={department._id}>
+                    {department.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth required>
+              <InputLabel>Program</InputLabel>
+              <Select
+                value={formData.programId}
+                label="Program"
+                onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
+              >
+                {programs.map((program) => (
+                  <MenuItem key={program._id} value={program._id}>
+                    {program.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              multiline
+              rows={3}
+              fullWidth
+            />
+            <TextField
+              label="Credits"
+              type="number"
+              value={formData.credits}
+              onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
+              required
+              fullWidth
+              inputProps={{ min: 1, max: 6 }}
+            />
+            <FormControl fullWidth required>
+              <InputLabel>Semester</InputLabel>
+              <Select
+                value={formData.semester}
+                label="Semester"
+                onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+              >
+                <MenuItem value="Fall">Fall</MenuItem>
+                <MenuItem value="Spring">Spring</MenuItem>
+                <MenuItem value="Summer">Summer</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Academic Year"
+              value={formData.academicYear}
+              onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
+              required
+              fullWidth
+              placeholder="YYYY-YYYY"
+            />
+            <FormControl fullWidth required>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={formData.status}
+                label="Status"
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              >
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="inactive">Inactive</MenuItem>
+                <MenuItem value="archived">Archived</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            Save
+          <Button
+            onClick={selectedCourse ? handleUpdate : handleSubmit}
+            variant="contained"
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : selectedCourse ? 'Update' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -499,4 +433,4 @@ const CourseManagement = () => {
   );
 };
 
-export default CourseManagement; 
+export default CourseManagement;

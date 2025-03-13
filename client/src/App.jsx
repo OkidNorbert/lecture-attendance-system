@@ -9,6 +9,7 @@ import AdminRoute from './components/auth/AdminRoute';
 import LecturerRoute from './components/auth/LecturerRoute';
 import StudentRoute from './components/auth/StudentRoute';
 import SessionDetails from './pages/SessionDetails';
+import ProgramManagement from './components/admin/ProgramManagement';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
 
       {/* Dashboard routes */}
       <Route path="/admin/*" element={<AdminDashboard />} />
+      <Route path="/admin/programs" element={<ProgramManagement />} />
       <Route path="/lecturer" element={<LecturerDashboard />} />
       <Route path="/student" element={<StudentDashboard />} />
 
