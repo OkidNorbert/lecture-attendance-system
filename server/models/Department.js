@@ -1,30 +1,27 @@
 const mongoose = require('mongoose');
 
-const departmentSchema = new mongoose.Schema({
+const DepartmentSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   code: {
     type: String,
     required: true,
     unique: true
   },
-  description: {
-    type: String
-  },
-  faculty: {
+  facultyId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Faculty',
     required: true
   },
-  head: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  description: {
+    type: String
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-module.exports = mongoose.model('Department', departmentSchema); 
+module.exports = mongoose.model('Department', DepartmentSchema); 

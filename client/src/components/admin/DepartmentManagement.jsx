@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
   Box,
   Button,
+  TextField,
+  Typography,
   Paper,
   Table,
   TableBody,
@@ -9,232 +12,215 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  IconButton,
+  Alert,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  Alert,
-  Typography,
+  IconButton,
+  MenuItem,
+  Select,
   FormControl,
   InputLabel,
-  Select,
-  MenuItem
 } from '@mui/material';
 import {
-  Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 
 const DepartmentManagement = () => {
   const [departments, setDepartments] = useState([]);
   const [faculties, setFaculties] = useState([]);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    description: '',
-    faculty: ''
+    facultyId: '',
+    description: ''
   });
+  const [editingDepartment, setEditingDepartment] = useState(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState(null);
+
+  useEffect(() => {
+    fetchDepartments();
+    fetchFaculties();
+  }, []);
+
+  const fetchDepartments = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/admin/departments', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setDepartments(response.data);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Error fetching departments');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchFaculties = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/faculties', {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/admin/faculties', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`
         }
       });
-
-      if (!response.ok) throw new Error('Failed to fetch faculties');
-      const data = await response.json();
-      setFaculties(data);
+      setFaculties(response.data);
     } catch (err) {
-      setError('Failed to load faculties');
+      console.error('Error fetching faculties:', err);
     }
   };
-
-  const fetchDepartments = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/admin/departments', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch departments');
-      const data = await response.json();
-      setDepartments(data);
-    } catch (err) {
-      setError('Failed to load departments');
-    }
-  };
-
-  useEffect(() => {
-    fetchFaculties();
-    fetchDepartments();
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      if (!formData.faculty) {
-        throw new Error('Please select a faculty');
-      }
-
-      const url = selectedDepartment
-        ? `http://localhost:5000/api/admin/departments/${selectedDepartment._id}`
-        : 'http://localhost:5000/api/admin/departments';
-
-      const method = selectedDepartment ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.msg || 'Failed to save department');
-      }
-
-      const data = await response.json();
-      setSuccess(data.msg);
-      setOpenDialog(false);
-      fetchDepartments();
-      resetForm();
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:5000/api/admin/departments',
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      setDepartments([...departments, response.data]);
+      setFormData({ name: '', code: '', facultyId: '', description: '' });
+      setSuccessMessage('Department created successfully');
+      setError('');
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.msg || 'Error creating department');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/departments/${editingDepartment._id}`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      setDepartments(departments.map(dept => 
+        dept._id === editingDepartment._id ? response.data : dept
+      ));
+      handleDialogClose();
+      setSuccessMessage('Department updated successfully');
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Error updating department');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this department?')) return;
+    setSelectedDepartmentId(id);
+    setDeleteConfirmOpen(true);
+  };
 
+  const confirmDelete = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/departments/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
+      const token = localStorage.getItem('token');
+      await axios.delete(
+        `http://localhost:5000/api/admin/departments/${selectedDepartmentId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         }
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.msg || 'Failed to delete department');
-      }
-
-      setSuccess('Department deleted successfully');
-      fetchDepartments();
+      );
+      setDepartments(departments.filter(dept => dept._id !== selectedDepartmentId));
+      setDeleteConfirmOpen(false);
+      setSuccessMessage('Department deleted successfully');
+      setError('');
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.msg || 'Error deleting department');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const resetForm = () => {
+  const handleEdit = (department) => {
+    setEditingDepartment(department);
     setFormData({
-      name: '',
-      code: '',
-      description: '',
-      faculty: ''
+      name: department.name,
+      code: department.code,
+      facultyId: department.facultyId._id,
+      description: department.description || ''
     });
-    setSelectedDepartment(null);
+    setOpenDialog(true);
+  };
+
+  const handleDialogClose = () => {
+    setOpenDialog(false);
+    setFormData({ name: '', code: '', facultyId: '', description: '' });
+    setEditingDepartment(null);
   };
 
   return (
     <Box>
+      <Typography variant="h6" gutterBottom>
+        Department Management
+      </Typography>
+
+      {successMessage && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage('')}>
+          {successMessage}
+        </Alert>
+      )}
+
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
         </Alert>
       )}
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-          {success}
-        </Alert>
-      )}
 
-      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6">Departments</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => {
-            resetForm();
-            setOpenDialog(true);
-          }}
-        >
-          Add Department
-        </Button>
-      </Box>
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Code</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Faculty</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {departments.map((department) => (
-              <TableRow key={department._id}>
-                <TableCell>{department.code}</TableCell>
-                <TableCell>{department.name}</TableCell>
-                <TableCell>{department.faculty?.name || 'N/A'}</TableCell>
-                <TableCell>{department.description}</TableCell>
-                <TableCell>
-                  <IconButton 
-                    onClick={() => {
-                      setSelectedDepartment(department);
-                      setFormData({
-                        name: department.name,
-                        code: department.code,
-                        description: department.description || '',
-                        faculty: department.faculty?._id || ''
-                      });
-                      setOpenDialog(true);
-                    }}
-                    color="primary"
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => handleDelete(department._id)} color="error">
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {selectedDepartment ? 'Edit Department' : 'Add New Department'}
-        </DialogTitle>
-        <DialogContent>
-          <Box component="form" sx={{ pt: 2 }}>
-            <FormControl fullWidth margin="normal" required>
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <form onSubmit={handleSubmit}>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField
+              label="Department Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              size="small"
+            />
+            <TextField
+              label="Department Code"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              required
+              size="small"
+            />
+            <FormControl required size="small" sx={{ minWidth: 200 }}>
               <InputLabel>Faculty</InputLabel>
               <Select
-                value={formData.faculty}
-                onChange={(e) => setFormData({ ...formData, faculty: e.target.value })}
+                value={formData.facultyId}
                 label="Faculty"
+                onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
               >
                 {faculties.map((faculty) => (
                   <MenuItem key={faculty._id} value={faculty._id}>
@@ -244,36 +230,173 @@ const DepartmentManagement = () => {
               </Select>
             </FormControl>
             <TextField
-              fullWidth
-              label="Department Code"
-              value={formData.code}
-              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              margin="normal"
-              required
-            />
-            <TextField
-              fullWidth
-              label="Department Name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              margin="normal"
-              required
-            />
-            <TextField
-              fullWidth
               label="Description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              margin="normal"
+              size="small"
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={24} /> : 'Add Department'}
+            </Button>
+          </Box>
+        </form>
+      </Paper>
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Code</TableCell>
+              <TableCell>Faculty</TableCell>
+              <TableCell>Description</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {loading && !departments.length ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center">
+                  <CircularProgress size={24} />
+                </TableCell>
+              </TableRow>
+            ) : departments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center">
+                  No departments found
+                </TableCell>
+              </TableRow>
+            ) : (
+              departments.map((department) => (
+                <TableRow key={department._id}>
+                  <TableCell>{department.name}</TableCell>
+                  <TableCell>{department.code}</TableCell>
+                  <TableCell>{department.facultyId?.name}</TableCell>
+                  <TableCell>{department.description}</TableCell>
+                  <TableCell align="right">
+                    <IconButton
+                      color="primary"
+                      onClick={() => handleEdit(department)}
+                      size="small"
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      color="error"
+                      onClick={() => handleDelete(department._id)}
+                      size="small"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Edit Dialog */}
+      <Dialog 
+        open={openDialog} 
+        onClose={handleDialogClose}
+        aria-labelledby="edit-department-title"
+      >
+        <DialogTitle id="edit-department-title">
+          Edit Department
+          <IconButton
+            aria-label="close"
+            onClick={handleDialogClose}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Department Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              fullWidth
+            />
+            <TextField
+              label="Department Code"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              required
+              fullWidth
+            />
+            <FormControl required fullWidth>
+              <InputLabel>Faculty</InputLabel>
+              <Select
+                value={formData.facultyId}
+                label="Faculty"
+                onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
+              >
+                {faculties.map((faculty) => (
+                  <MenuItem key={faculty._id} value={faculty._id}>
+                    {faculty.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              fullWidth
               multiline
               rows={3}
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            Save
+          <Button onClick={handleDialogClose}>Cancel</Button>
+          <Button 
+            onClick={handleUpdate} 
+            variant="contained" 
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Update'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        aria-labelledby="delete-dialog-title"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Confirm Delete
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this department? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDelete} 
+            color="error" 
+            variant="contained"
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

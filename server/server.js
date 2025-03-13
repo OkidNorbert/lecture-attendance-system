@@ -29,6 +29,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Add request logging for debugging
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
+
 // ✅ Import routes
 const authRoutes = require("./routes/auth");
 const attendanceRoutes = require("./routes/attendance");
@@ -51,13 +57,16 @@ connectDB();
 
 // Test route
 app.get('/test', (req, res) => {
-  res.json({ message: "Server is running!" });
+  res.json({ msg: 'Server is running' });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ msg: 'Something broke!' });
+  res.status(500).json({ 
+    msg: 'Server Error', 
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+  });
 });
 
 // ✅ Start the server

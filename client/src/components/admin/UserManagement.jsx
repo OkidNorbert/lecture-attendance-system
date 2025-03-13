@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
+  Box,
+  Button,
+  TextField,
+  Typography,
   Paper,
   Table,
   TableBody,
@@ -7,215 +12,230 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Button,
-  IconButton,
+  Alert,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
+  IconButton,
+  Select,
   MenuItem,
-  Box,
-  Alert,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
-  Delete as DeleteIcon,
   Edit as EditIcon,
-  Add as AddIcon,
+  Delete as DeleteIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'student',
-    courses: [],
+    role: 'user',
+    password: ''
   });
-  const [tempPassword, setTempPassword] = useState('');
+  const [editingUser, setEditingUser] = useState(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState(null);
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
   const fetchUsers = async () => {
+    setLoading(true);
     try {
-      console.log('Fetching users...');
-      const response = await fetch('http://localhost:5000/api/admin/users', {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await axios.get('http://localhost:5000/api/admin/users', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-      
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server response:', errorText);
-        throw new Error(`Failed to fetch users: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Users data:', data);
-      setUsers(data);
+
+      setUsers(response.data);
+      setError('');
     } catch (err) {
       console.error('Error in fetchUsers:', err);
-      setError('Failed to load users');
-    }
-  };
-
-  const handleAddUser = () => {
-    setSelectedUser(null);
-    setFormData({
-      name: '',
-      email: '',
-      role: 'student',
-      courses: [],
-    });
-    setOpenDialog(true);
-  };
-
-  const handleEditUser = (user) => {
-    setSelectedUser(user);
-    setFormData({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      courses: user.courses || [],
-    });
-    setOpenDialog(true);
-  };
-
-  const handleDeleteUser = async (userId) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      try {
-        const response = await fetch(`http://localhost:5000/api/admin/remove-user/${userId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.msg || 'Failed to delete user');
-        }
-
-        const data = await response.json();
-        setSuccess(data.msg || 'User deleted successfully');
-        fetchUsers();
-      } catch (err) {
-        console.error('Delete error:', err);
-        setError(err.message || 'Failed to delete user');
+      setError(err.response?.data?.msg || 'Failed to load users');
+      if (err.response?.status === 401) {
+        // Handle unauthorized access
+        localStorage.removeItem('token'); // Clear invalid token
+        // Optionally redirect to login
+        window.location.href = '/login';
       }
-    }
-  };
-
-  const handleResetPassword = async (userId) => {
-    if (window.confirm('Are you sure you want to reset this user\'s password?')) {
-      try {
-        const response = await fetch(`http://localhost:5000/api/admin/reset-password/${userId}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.msg || 'Failed to reset password');
-        }
-
-        const data = await response.json();
-        setSuccess(`Password reset successfully. New temporary password: ${data.tempPassword}`);
-      } catch (err) {
-        setError(err.message || 'Failed to reset password');
-      }
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      const url = selectedUser
-        ? `http://localhost:5000/api/admin/users/${selectedUser._id}`
-        : 'http://localhost:5000/api/admin/register-lecturer';
-      
-      const response = await fetch(url, {
-        method: selectedUser ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.msg || 'Failed to save user');
-      }
-
-      const data = await response.json();
-      
-      if (data.tempPassword) {
-        setTempPassword(data.tempPassword);
-        setSuccess(`User registered successfully. Temporary password: ${data.tempPassword}`);
-      } else {
-        setSuccess('User updated successfully');
-      }
-      
-      setOpenDialog(false);
-      fetchUsers();
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:5000/api/admin/users',
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      setUsers([...users, response.data]);
+      setFormData({ name: '', email: '', role: 'user', password: '' });
+      setError('');
     } catch (err) {
-      console.error('Error:', err);
-      setError(err.message || 'Failed to save user');
+      setError(err.response?.data?.msg || 'Error creating user');
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleUpdate = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/users/${editingUser._id}`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      setUsers(users.map(user => 
+        user._id === editingUser._id ? response.data : user
+      ));
+      handleDialogClose();
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Error updating user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    setSelectedUserId(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(
+        `http://localhost:5000/api/admin/users/${selectedUserId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      setUsers(users.filter(user => user._id !== selectedUserId));
+      setDeleteConfirmOpen(false);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Error deleting user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (user) => {
+    setEditingUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      password: '' // Don't populate password
+    });
+    setOpenDialog(true);
+  };
+
+  const handleDialogClose = () => {
+    setOpenDialog(false);
+    setFormData({ name: '', email: '', role: 'user', password: '' });
+    setEditingUser(null);
+  };
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Box>
+      <Typography variant="h6" gutterBottom>
+        User Management
+      </Typography>
+
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
         </Alert>
       )}
-      
-      {success && (
-        <Alert 
-          severity="success" 
-          sx={{ mb: 2 }} 
-          onClose={() => {
-            setSuccess('');
-            setTempPassword('');
-          }}
-        >
-          <div>
-            {success}
-            {tempPassword && (
-              <div style={{ marginTop: '10px', fontWeight: 'bold' }}>
-                Please save this temporary password: {tempPassword}
-              </div>
-            )}
-          </div>
-        </Alert>
-      )}
 
-      <Box sx={{ mb: 2 }}>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddUser}
-        >
-          Add New User
-        </Button>
-      </Box>
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <form onSubmit={handleSubmit}>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <TextField
+              label="Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              size="small"
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+              size="small"
+            />
+            <FormControl required size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={formData.role}
+                label="Role"
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              >
+                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+                <MenuItem value="faculty">Faculty</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Password"
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              required={!editingUser}
+              size="small"
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={24} /> : 'Add User'}
+            </Button>
+          </Box>
+        </form>
+      </Paper>
 
       <TableContainer component={Paper}>
         <Table>
@@ -224,79 +244,146 @@ const UserManagement = () => {
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
               <TableCell>Role</TableCell>
-              <TableCell>Actions</TableCell>
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map((user) => (
-              <TableRow key={user._id}>
-                <TableCell>{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.role}</TableCell>
-                <TableCell>
-                  <IconButton onClick={() => handleEditUser(user)}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => handleDeleteUser(user._id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => handleResetPassword(user._id)}
-                    sx={{ ml: 1 }}
-                  >
-                    Reset Password
-                  </Button>
+            {loading && !users.length ? (
+              <TableRow>
+                <TableCell colSpan={4} align="center">
+                  <CircularProgress size={24} />
                 </TableCell>
               </TableRow>
-            ))}
+            ) : users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} align="center">
+                  No users found
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map((user) => (
+                <TableRow key={user._id}>
+                  <TableCell>{user.name}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.role}</TableCell>
+                  <TableCell align="right">
+                    <IconButton
+                      color="primary"
+                      onClick={() => handleEdit(user)}
+                      size="small"
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      color="error"
+                      onClick={() => handleDelete(user._id)}
+                      size="small"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
-        <DialogTitle>
-          {selectedUser ? 'Edit User' : 'Add New User'}
+      {/* Edit Dialog */}
+      <Dialog 
+        open={openDialog} 
+        onClose={handleDialogClose}
+        aria-labelledby="edit-user-title"
+      >
+        <DialogTitle id="edit-user-title">
+          Edit User
+          <IconButton
+            aria-label="close"
+            onClick={handleDialogClose}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
-        <DialogContent>
-          <Box component="form" sx={{ pt: 2 }}>
+        <DialogContent dividers>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-              fullWidth
               label="Name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              margin="normal"
               required
+              fullWidth
             />
             <TextField
-              fullWidth
               label="Email"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              margin="normal"
               required
-            />
-            <TextField
               fullWidth
-              select
-              label="Role"
-              value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              margin="normal"
-              required
-            >
-              <MenuItem value="student">Student</MenuItem>
-              <MenuItem value="lecturer">Lecturer</MenuItem>
-              <MenuItem value="admin">Admin</MenuItem>
-            </TextField>
+            />
+            <FormControl required fullWidth>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={formData.role}
+                label="Role"
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              >
+                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+                <MenuItem value="faculty">Faculty</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="New Password (leave blank to keep current)"
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              fullWidth
+            />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            Save
+          <Button onClick={handleDialogClose}>Cancel</Button>
+          <Button 
+            onClick={handleUpdate} 
+            variant="contained" 
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Update'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        aria-labelledby="delete-dialog-title"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Confirm Delete
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this user? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDelete} 
+            color="error" 
+            variant="contained"
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

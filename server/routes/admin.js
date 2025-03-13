@@ -11,6 +11,7 @@ const Department = require("../models/Department");
 const Program = require("../models/Program");
 const Faculty = require('../models/Faculty');
 const adminMiddleware = require('../middleware/admin');
+const mongoose = require('mongoose');
 
 const router = express.Router();
 
@@ -529,30 +530,61 @@ router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async
 // Department Routes
 router.get("/departments", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const departments = await Department.find().populate('head', 'name email');
+    const departments = await Department.find()
+      .populate('facultyId', 'name code')
+      .sort({ name: 1 });
     res.json(departments);
   } catch (err) {
-    res.status(500).json({ msg: "❌ Server error", error: err.message });
+    console.error('Get departments error:', err);
+    res.status(500).json({ msg: 'Server Error' });
   }
 });
 
 router.post("/departments", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { name, code, description, head } = req.body;
-    
-    const existingDept = await Department.findOne({ 
-      $or: [{ name }, { code }] 
-    });
-    if (existingDept) {
-      return res.status(400).json({ msg: "❌ Department already exists" });
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
     }
 
-    const department = new Department({ name, code, description, head });
+    const { name, code, facultyId, description } = req.body;
+
+    // Validate required fields
+    if (!name || !code || !facultyId) {
+      return res.status(400).json({ msg: 'Please provide all required fields' });
+    }
+
+    // Check if faculty exists
+    const faculty = await Faculty.findById(facultyId);
+    if (!faculty) {
+      return res.status(400).json({ msg: 'Faculty not found' });
+    }
+
+    // Check if department code already exists
+    let existingDepartment = await Department.findOne({ code });
+    if (existingDepartment) {
+      return res.status(400).json({ msg: 'Department code already exists' });
+    }
+
+    // Create new department
+    const department = new Department({
+      name,
+      code,
+      facultyId,
+      description
+    });
+
     await department.save();
 
-    res.status(201).json({ msg: "✅ Department added successfully", department });
+    // Populate faculty details before sending response
+    const populatedDepartment = await Department.findById(department._id)
+      .populate('facultyId', 'name code');
+
+    res.json(populatedDepartment);
+
   } catch (err) {
-    res.status(500).json({ msg: "❌ Server error", error: err.message });
+    console.error('Create department error:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -896,12 +928,17 @@ router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async
 // Get all faculties
 router.get("/faculties", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const faculties = await Faculty.find()
-      .populate('departments', 'name code');
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
+    const faculties = await Faculty.find().sort({ name: 1 });
+    console.log('Faculties fetched:', faculties); // Debug log
     res.json(faculties);
   } catch (err) {
-    console.error('Error fetching faculties:', err);
-    res.status(500).json({ msg: "Server error", error: err.message });
+    console.error('Get faculties error:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -925,70 +962,78 @@ router.get("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) =
 // Create faculty
 router.post("/faculties", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { name, code, description } = req.body;
-
-    // Check for existing faculty
-    const existingFaculty = await Faculty.findOne({ 
-      $or: [{ name }, { code }] 
-    });
-    
-    if (existingFaculty) {
-      return res.status(400).json({ 
-        msg: "Faculty with this name or code already exists" 
-      });
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
     }
 
-    const faculty = new Faculty({
+    const { name, code, description } = req.body;
+
+    // Validate input
+    if (!name || !code) {
+      return res.status(400).json({ msg: 'Please provide name and code' });
+    }
+
+    // Check if faculty already exists
+    let faculty = await Faculty.findOne({ $or: [{ name }, { code }] });
+    if (faculty) {
+      return res.status(400).json({ msg: 'Faculty with this name or code already exists' });
+    }
+
+    // Create new faculty
+    faculty = new Faculty({
       name,
       code,
       description
     });
 
     await faculty.save();
-    res.status(201).json({ 
-      msg: "Faculty created successfully", 
-      faculty 
-    });
+    res.json(faculty);
+
   } catch (err) {
-    console.error('Error creating faculty:', err);
-    res.status(500).json({ msg: "Server error", error: err.message });
+    console.error('Create faculty error:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
 // Update faculty
 router.put("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
     const { name, code, description } = req.body;
-
-    // Check for existing faculty with same name or code
-    const existingFaculty = await Faculty.findOne({
-      _id: { $ne: req.params.id },
-      $or: [{ name }, { code }]
-    });
-
-    if (existingFaculty) {
-      return res.status(400).json({ 
-        msg: "Faculty with this name or code already exists" 
-      });
-    }
-
-    const faculty = await Faculty.findByIdAndUpdate(
-      req.params.id,
-      { name, code, description },
-      { new: true }
-    ).populate('departments', 'name code');
-
+    
+    // Check if faculty exists
+    let faculty = await Faculty.findById(req.params.id);
     if (!faculty) {
-      return res.status(404).json({ msg: "Faculty not found" });
+      return res.status(404).json({ msg: 'Faculty not found' });
     }
 
-    res.json({ 
-      msg: "Faculty updated successfully", 
-      faculty 
-    });
+    // Check if new code already exists (if code is being changed)
+    if (code !== faculty.code) {
+      const existingFaculty = await Faculty.findOne({ code });
+      if (existingFaculty && existingFaculty._id.toString() !== req.params.id) {
+        return res.status(400).json({ msg: 'Faculty code already exists' });
+      }
+    }
+
+    // Update faculty
+    faculty = await Faculty.findByIdAndUpdate(
+      req.params.id,
+      { 
+        name, 
+        code, 
+        description 
+      },
+      { new: true } // This option returns the updated document
+    );
+
+    res.json(faculty);
   } catch (err) {
-    console.error('Error updating faculty:', err);
-    res.status(500).json({ msg: "Server error", error: err.message });
+    console.error('Update faculty error:', err);
+    res.status(500).json({ msg: 'Server Error' });
   }
 });
 
@@ -1070,6 +1115,147 @@ router.get('/users', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/admin/dashboard-stats
+// @desc    Get admin dashboard statistics
+// @access  Private (Admin only)
+router.get('/dashboard-stats', authMiddleware, async (req, res) => {
+  console.log('Dashboard stats route hit');
+  try {
+    // For testing, return mock data first
+    res.json({
+      totalUsers: 10,
+      totalCourses: 5,
+      activeAttendance: 2
+    });
+
+    // Once mock data works, uncomment this for real data
+    /*
+    const [totalUsers, totalCourses, activeAttendance] = await Promise.all([
+      User.countDocuments(),
+      Course.countDocuments(),
+      Session.countDocuments({ status: 'active' })
+    ]);
+
+    res.json({
+      totalUsers,
+      totalCourses,
+      activeAttendance
+    });
+    */
+  } catch (err) {
+    console.error('Dashboard stats error:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
+// Test route to verify admin routes are working
+router.get('/test', (req, res) => {
+  console.log('Admin test route hit');
+  res.json({ msg: 'Admin routes working' });
+});
+
+// @route   PUT api/admin/departments/:id
+// @desc    Update a department
+// @access  Private (Admin only)
+router.put('/departments/:id', authMiddleware, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
+    // Validate MongoDB ID
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ msg: 'Invalid department ID' });
+    }
+
+    const { name, code, facultyId, description } = req.body;
+
+    // Validate required fields
+    if (!name || !code || !facultyId) {
+      return res.status(400).json({ msg: 'Please provide all required fields' });
+    }
+
+    // Check if department exists
+    let department = await Department.findById(req.params.id);
+    if (!department) {
+      return res.status(404).json({ msg: 'Department not found' });
+    }
+
+    // Check if faculty exists
+    const faculty = await Faculty.findById(facultyId);
+    if (!faculty) {
+      return res.status(400).json({ msg: 'Faculty not found' });
+    }
+
+    // Check if new code already exists (if code is being changed)
+    if (code !== department.code) {
+      const existingDepartment = await Department.findOne({ 
+        code, 
+        _id: { $ne: req.params.id } 
+      });
+      if (existingDepartment) {
+        return res.status(400).json({ msg: 'Department code already exists' });
+      }
+    }
+
+    // Update department
+    department = await Department.findByIdAndUpdate(
+      req.params.id,
+      {
+        name,
+        code,
+        facultyId,
+        description,
+        updatedAt: Date.now()
+      },
+      { 
+        new: true,
+        runValidators: true
+      }
+    ).populate('facultyId', 'name code');
+
+    // Log the update
+    console.log('Department updated:', department);
+
+    res.json(department);
+
+  } catch (err) {
+    console.error('Update department error:', err);
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ msg: 'Invalid department data' });
+    }
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
+// @route   GET api/admin/departments/:id
+// @desc    Get a single department
+// @access  Private (Admin only)
+router.get('/departments/:id', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ msg: 'Invalid department ID' });
+    }
+
+    const department = await Department.findById(req.params.id)
+      .populate('facultyId', 'name code');
+
+    if (!department) {
+      return res.status(404).json({ msg: 'Department not found' });
+    }
+
+    res.json(department);
+  } catch (err) {
+    console.error('Get department error:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
