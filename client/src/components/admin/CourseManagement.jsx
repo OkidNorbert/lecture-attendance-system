@@ -25,6 +25,9 @@ import {
   InputLabel,
   Tabs,
   Tab,
+  Grid,
+  Tooltip,
+  FormHelperText,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -52,10 +55,9 @@ const CourseManagement = () => {
     programId: '',
     description: '',
     credits: '',
-    semester: '',
-    academicYear: '',
     status: 'active'
   });
+  const [validationErrors, setValidationErrors] = useState({});
 
   useEffect(() => {
     fetchInitialData();
@@ -65,10 +67,10 @@ const CourseManagement = () => {
     try {
       setLoading(true);
       await Promise.all([
-        fetchCourses(),
         fetchFaculties(),
         fetchDepartments(),
-        fetchPrograms()
+        fetchPrograms(),
+        fetchCourses()
       ]);
     } catch (err) {
       console.error('Error fetching initial data:', err);
@@ -84,10 +86,11 @@ const CourseManagement = () => {
       const response = await axios.get('http://localhost:5000/api/admin/courses', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      console.log('Fetched courses:', response.data); // Debug log
       setCourses(response.data);
     } catch (err) {
       console.error('Error fetching courses:', err);
-      setError('Failed to load courses');
+      setError('Failed to fetch courses');
     }
   };
 
@@ -100,7 +103,7 @@ const CourseManagement = () => {
       setFaculties(response.data);
     } catch (err) {
       console.error('Error fetching faculties:', err);
-      setError('Failed to load faculties');
+      setError('Failed to fetch faculties');
     }
   };
 
@@ -113,7 +116,7 @@ const CourseManagement = () => {
       setDepartments(response.data);
     } catch (err) {
       console.error('Error fetching departments:', err);
-      setError('Failed to load departments');
+      setError('Failed to fetch departments');
     }
   };
 
@@ -126,7 +129,7 @@ const CourseManagement = () => {
       setPrograms(response.data);
     } catch (err) {
       console.error('Error fetching programs:', err);
-      setError('Failed to load programs');
+      setError('Failed to fetch programs');
     }
   };
 
@@ -135,23 +138,67 @@ const CourseManagement = () => {
     setLoading(true);
     setError('');
     setSuccessMessage('');
+    setValidationErrors({});
+
+    // Validate all required fields
+    const errors = {};
+    if (!formData.name.trim()) errors.name = 'Course name is required';
+    if (!formData.code.trim()) errors.code = 'Course code is required';
+    if (!formData.facultyId) errors.facultyId = 'Faculty is required';
+    if (!formData.departmentId) errors.departmentId = 'Department is required';
+    if (!formData.programId) errors.programId = 'Program is required';
+    if (!formData.credits) errors.credits = 'Credits are required';
+
+    // Check if there are any validation errors
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      setError('Please fill in all required fields');
+      setLoading(false);
+      return;
+    }
 
     try {
       const token = localStorage.getItem('token');
+      const courseData = {
+        name: formData.name.trim(),
+        code: formData.code.toUpperCase().trim(),
+        facultyId: formData.facultyId,
+        departmentId: formData.departmentId,
+        programId: formData.programId,
+        description: formData.description?.trim() || '',
+        credits: Number(formData.credits),
+        status: formData.status || 'active'
+      };
+
+      // Debug log the data being sent
+      console.log('Submitting course data:', courseData);
+
       const response = await axios.post(
         'http://localhost:5000/api/admin/courses',
-        formData,
+        courseData,
         {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
       );
 
+      // Debug log the response
+      console.log('Server response:', response.data);
+
+      // Update courses list and show success message
       setCourses([...courses, response.data]);
-      setSuccessMessage('Course created successfully');
-      setOpenDialog(false);
+      setSuccessMessage('Course added successfully');
       resetForm();
     } catch (err) {
-      setError(err.response?.data?.msg || 'Error creating course');
+      console.error('Create course error:', err.response?.data || err);
+      setError(err.response?.data?.msg || 'Error adding course');
+      
+      // If server returned validation errors, set them
+      if (err.response?.data?.errors) {
+        setValidationErrors(err.response.data.errors);
+      }
     } finally {
       setLoading(false);
     }
@@ -177,6 +224,7 @@ const CourseManagement = () => {
       ));
       setSuccessMessage('Course updated successfully');
       setOpenDialog(false);
+      setSelectedCourse(null);
       resetForm();
     } catch (err) {
       setError(err.response?.data?.msg || 'Error updating course');
@@ -185,22 +233,26 @@ const CourseManagement = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (courseId) => {
     if (!window.confirm('Are you sure you want to delete this course?')) return;
-
+    
     setLoading(true);
     setError('');
     setSuccessMessage('');
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/admin/courses/${id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.delete(
+        `http://localhost:5000/api/admin/courses/${courseId}`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
 
-      setCourses(courses.filter(course => course._id !== id));
-      setSuccessMessage('Course deleted successfully');
+      setCourses(courses.filter(course => course._id !== courseId));
+      setSuccessMessage(response.data.msg);
     } catch (err) {
+      console.error('Delete course error:', err.response?.data || err);
       setError(err.response?.data?.msg || 'Error deleting course');
     } finally {
       setLoading(false);
@@ -216,11 +268,8 @@ const CourseManagement = () => {
       programId: '',
       description: '',
       credits: '',
-      semester: '',
-      academicYear: '',
       status: 'active'
     });
-    setSelectedCourse(null);
   };
 
   const handleEdit = (course) => {
@@ -228,86 +277,270 @@ const CourseManagement = () => {
     setFormData({
       name: course.name,
       code: course.code,
-      facultyId: course.facultyId._id,
-      departmentId: course.departmentId._id,
-      programId: course.programId._id,
-      description: course.description,
+      facultyId: course.facultyId?._id || '',
+      departmentId: course.departmentId?._id || '',
+      programId: course.programId?._id || '',
+      description: course.description || '',
       credits: course.credits,
-      semester: course.semester,
-      academicYear: course.academicYear,
       status: course.status
     });
     setOpenDialog(true);
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" sx={{ mb: 3 }}>
-        Course Management
-      </Typography>
+    <Box>
+      <Grid container spacing={3}>
+        {/* Add Course Form */}
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Add New Course
+            </Typography>
+            <Box component="form" onSubmit={handleSubmit}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Course Name"
+                    placeholder="e.g., Object Oriented Programming"
+                    value={formData.name}
+                    onChange={(e) => {
+                      setFormData({ ...formData, name: e.target.value });
+                      setValidationErrors({ ...validationErrors, name: '' });
+                    }}
+                    required
+                    error={!!validationErrors.name}
+                    helperText={validationErrors.name || ""}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Course Code"
+                    placeholder="e.g., CSC001"
+                    value={formData.code}
+                    onChange={(e) => {
+                      setFormData({ ...formData, code: e.target.value });
+                      setValidationErrors({ ...validationErrors, code: '' });
+                    }}
+                    required
+                    error={!!validationErrors.code}
+                    helperText={validationErrors.code || "Enter course code (e.g., CSC001)"}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth required error={!!validationErrors.facultyId}>
+                    <InputLabel>Faculty</InputLabel>
+                    <Select
+                      value={formData.facultyId}
+                      label="Faculty"
+                      onChange={(e) => {
+                        setFormData({ ...formData, facultyId: e.target.value });
+                        setValidationErrors({ ...validationErrors, facultyId: '' });
+                      }}
+                    >
+                      {faculties.map((faculty) => (
+                        <MenuItem key={faculty._id} value={faculty._id}>
+                          {faculty.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    {validationErrors.facultyId && (
+                      <FormHelperText error>{validationErrors.facultyId}</FormHelperText>
+                    )}
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth required error={!!validationErrors.departmentId}>
+                    <InputLabel>Department</InputLabel>
+                    <Select
+                      value={formData.departmentId}
+                      label="Department"
+                      onChange={(e) => {
+                        setFormData({ ...formData, departmentId: e.target.value });
+                        setValidationErrors({ ...validationErrors, departmentId: '' });
+                      }}
+                    >
+                      {departments.map((department) => (
+                        <MenuItem key={department._id} value={department._id}>
+                          {department.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    {validationErrors.departmentId && (
+                      <FormHelperText error>{validationErrors.departmentId}</FormHelperText>
+                    )}
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth required error={!!validationErrors.programId}>
+                    <InputLabel>Program</InputLabel>
+                    <Select
+                      value={formData.programId}
+                      label="Program"
+                      onChange={(e) => {
+                        setFormData({ ...formData, programId: e.target.value });
+                        setValidationErrors({ ...validationErrors, programId: '' });
+                      }}
+                    >
+                      {programs.map((program) => (
+                        <MenuItem key={program._id} value={program._id}>
+                          {program.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    {validationErrors.programId && (
+                      <FormHelperText error>{validationErrors.programId}</FormHelperText>
+                    )}
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    multiline
+                    rows={3}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Credits"
+                    type="number"
+                    value={formData.credits}
+                    onChange={(e) => {
+                      setFormData({ ...formData, credits: e.target.value });
+                      setValidationErrors({ ...validationErrors, credits: '' });
+                    }}
+                    required
+                    error={!!validationErrors.credits}
+                    helperText={validationErrors.credits || "Credits (1-25)"}
+                    inputProps={{ min: 1, max: 25 }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={formData.status}
+                      label="Status"
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    >
+                      <MenuItem value="active">Active</MenuItem>
+                      <MenuItem value="inactive">Inactive</MenuItem>
+                      <MenuItem value="archived">Archived</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    fullWidth
+                    disabled={loading}
+                  >
+                    {loading ? <CircularProgress size={24} /> : 'Add Course'}
+                  </Button>
+                </Grid>
+              </Grid>
+            </Box>
+          </Paper>
+        </Grid>
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
+        {/* Courses List */}
+        <Grid item xs={12} md={8}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Courses List
+            </Typography>
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
+            
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                <CircularProgress />
+              </Box>
+            ) : courses.length === 0 ? (
+              <Typography color="textSecondary" align="center">
+                No courses found
+              </Typography>
+            ) : (
+              <Grid container spacing={2}>
+                {courses.map((course) => (
+                  <Grid item xs={12} key={course._id}>
+                    <Paper sx={{ p: 2 }}>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <Box>
+                            <Typography variant="h6" component="h3">
+                              {course.name}
+                            </Typography>
+                            <Typography variant="subtitle2" color="primary">
+                              Code: {course.code}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Tooltip title="Edit">
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleEdit(course)}
+                                sx={{ color: 'primary.main' }}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton 
+                                size="small" 
+                                onClick={() => handleDelete(course._id)}
+                                sx={{ color: 'error.main' }}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2">
+                            Faculty: {course.facultyId?.name}
+                          </Typography>
+                          <Typography variant="body2">
+                            Department: {course.departmentId?.name}
+                          </Typography>
+                          <Typography variant="body2">
+                            Program: {course.programId?.name}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2">
+                            Credits: {course.credits}
+                          </Typography>
+                          <Typography variant="body2">
+                            Status: {course.status}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            {course.description}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
 
-      <Button
-        variant="contained"
-        startIcon={<AddIcon />}
-        onClick={() => {
-          resetForm();
-          setOpenDialog(true);
-        }}
-        sx={{ mb: 3 }}
-      >
-        Add Course
-      </Button>
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Code</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Faculty</TableCell>
-              <TableCell>Department</TableCell>
-              <TableCell>Program</TableCell>
-              <TableCell>Credits</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {courses.map((course) => (
-              <TableRow key={course._id}>
-                <TableCell>{course.code}</TableCell>
-                <TableCell>{course.name}</TableCell>
-                <TableCell>{course.facultyId?.name}</TableCell>
-                <TableCell>{course.departmentId?.name}</TableCell>
-                <TableCell>{course.programId?.name}</TableCell>
-                <TableCell>{course.credits}</TableCell>
-                <TableCell>{course.status}</TableCell>
-                <TableCell>
-                  <IconButton onClick={() => handleEdit(course)} size="small">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => handleDelete(course._id)} size="small" color="error">
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
+      <Dialog open={openDialog} onClose={() => {
+        setOpenDialog(false);
+        setSelectedCourse(null);
+        resetForm();
+      }} maxWidth="md" fullWidth>
         <DialogTitle>
-          {selectedCourse ? 'Edit Course' : 'Add Course'}
-          <IconButton
-            onClick={() => setOpenDialog(false)}
-            sx={{ position: 'absolute', right: 8, top: 8 }}
-          >
-            <CloseIcon />
-          </IconButton>
+          Edit Course
         </DialogTitle>
         <DialogContent dividers>
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
@@ -381,30 +614,10 @@ const CourseManagement = () => {
               value={formData.credits}
               onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
               required
-              fullWidth
-              inputProps={{ min: 1, max: 6 }}
+              inputProps={{ min: 1, max: 25 }}
+              helperText="Credits (1-25)"
             />
-            <FormControl fullWidth required>
-              <InputLabel>Semester</InputLabel>
-              <Select
-                value={formData.semester}
-                label="Semester"
-                onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-              >
-                <MenuItem value="Fall">Fall</MenuItem>
-                <MenuItem value="Spring">Spring</MenuItem>
-                <MenuItem value="Summer">Summer</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              label="Academic Year"
-              value={formData.academicYear}
-              onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
-              required
-              fullWidth
-              placeholder="YYYY-YYYY"
-            />
-            <FormControl fullWidth required>
+            <FormControl fullWidth>
               <InputLabel>Status</InputLabel>
               <Select
                 value={formData.status}
@@ -419,13 +632,21 @@ const CourseManagement = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={() => {
+              setOpenDialog(false);
+              setSelectedCourse(null);
+              resetForm();
+            }}
+          >
+            Cancel
+          </Button>
           <Button
-            onClick={selectedCourse ? handleUpdate : handleSubmit}
+            onClick={handleUpdate}
             variant="contained"
             disabled={loading}
           >
-            {loading ? <CircularProgress size={24} /> : selectedCourse ? 'Update' : 'Create'}
+            {loading ? <CircularProgress size={24} /> : 'Update'}
           </Button>
         </DialogActions>
       </Dialog>

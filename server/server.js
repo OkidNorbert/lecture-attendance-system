@@ -21,13 +21,20 @@ const server = http.createServer(app);
 const wss = setupWebSocket(server);
 
 // Middleware
-app.use(express.json());
 app.use(cors({
-  origin: 'http://localhost:5173', // Your React app's URL
+  origin: 'http://localhost:5173',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.use(express.json());
+
+// Add headers middleware
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
 
 // Add request logging for debugging
 app.use((req, res, next) => {
@@ -60,13 +67,20 @@ app.get('/test', (req, res) => {
   res.json({ msg: 'Server is running' });
 });
 
-// Error handling middleware
+// Error handling middleware at the end
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ 
     msg: 'Server Error', 
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    error: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
+});
+
+// Add this to handle routes that aren't found
+app.use((req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.status(404).json({ msg: 'Route not found' });
 });
 
 // ✅ Start the server

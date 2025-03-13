@@ -13,6 +13,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  CircularProgress,
+  Alert
 } from '@mui/material';
 import {
   BarChart,
@@ -23,7 +25,10 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LineChart,
+  Line
 } from 'recharts';
+import axios from 'axios';
 
 const Reports = () => {
   const [filters, setFilters] = useState({
@@ -38,41 +43,75 @@ const Reports = () => {
   const [students, setStudents] = useState([]);
   const [reportData, setReportData] = useState([]);
   const [attendanceTrends, setAttendanceTrends] = useState([]);
+  const [courseStats, setCourseStats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [generatingSamples, setGeneratingSamples] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
-    fetchAttendanceTrends();
+    fetchData();
   }, []);
 
   const fetchInitialData = async () => {
     try {
+      const token = localStorage.getItem('token');
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Add debug logging
+      console.log('Fetching initial data...');
+
       const [coursesRes, lecturersRes, studentsRes] = await Promise.all([
-        fetch('/api/admin/courses'),
-        fetch('/api/admin/users?role=lecturer'),
-        fetch('/api/admin/users?role=student'),
+        axios.get('http://localhost:5000/api/admin/courses', { headers }),
+        axios.get('http://localhost:5000/api/admin/users?role=lecturer', { headers }),
+        axios.get('http://localhost:5000/api/admin/users?role=student', { headers })
       ]);
 
-      const [coursesData, lecturersData, studentsData] = await Promise.all([
-        coursesRes.json(),
-        lecturersRes.json(),
-        studentsRes.json(),
-      ]);
+      // Log responses
+      console.log('Courses response:', coursesRes.data);
+      console.log('Lecturers response:', lecturersRes.data);
+      console.log('Students response:', studentsRes.data);
 
-      setCourses(coursesData);
-      setLecturers(lecturersData);
-      setStudents(studentsData);
+      setCourses(coursesRes.data);
+      setLecturers(lecturersRes.data);
+      setStudents(studentsRes.data);
     } catch (error) {
       console.error('Error fetching initial data:', error);
+      setError('Failed to load dropdown data: ' + (error.response?.data?.msg || error.message));
     }
   };
 
-  const fetchAttendanceTrends = async () => {
+  const fetchData = async () => {
     try {
-      const response = await fetch('/api/admin/student-attendance-trends');
-      const data = await response.json();
-      setAttendanceTrends(data);
-    } catch (error) {
-      console.error('Error fetching attendance trends:', error);
+      setLoading(true);
+      setError('');
+
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      const [trendsResponse, statsResponse] = await Promise.all([
+        axios.get('http://localhost:5000/api/admin/reports/attendance-trends', { headers }),
+        axios.get('http://localhost:5000/api/admin/reports/course-stats', { headers })
+      ]);
+
+      // Process attendance trends data
+      const processedTrends = trendsResponse.data.map(day => ({
+        date: day._id,
+        present: day.statuses.find(s => s.status === 'present')?.count || 0,
+        absent: day.statuses.find(s => s.status === 'absent')?.count || 0,
+        late: day.statuses.find(s => s.status === 'late')?.count || 0
+      }));
+
+      setAttendanceTrends(processedTrends);
+      setCourseStats(statsResponse.data);
+    } catch (err) {
+      console.error('Error fetching reports:', err);
+      setError(err.response?.data?.msg || 'Failed to fetch report data');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -92,162 +131,225 @@ const Reports = () => {
     console.log('Exporting report...');
   };
 
-  return (
-    <Grid container spacing={3}>
-      {/* Filters */}
-      <Grid item xs={12}>
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Report Filters
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                select
-                label="Course"
-                value={filters.courseId}
-                onChange={(e) => setFilters({ ...filters, courseId: e.target.value })}
-              >
-                {courses.map((course) => (
-                  <MenuItem key={course._id} value={course._id}>
-                    {course.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                select
-                label="Lecturer"
-                value={filters.lecturerId}
-                onChange={(e) => setFilters({ ...filters, lecturerId: e.target.value })}
-              >
-                {lecturers.map((lecturer) => (
-                  <MenuItem key={lecturer._id} value={lecturer._id}>
-                    {lecturer.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                select
-                label="Student"
-                value={filters.studentId}
-                onChange={(e) => setFilters({ ...filters, studentId: e.target.value })}
-              >
-                {students.map((student) => (
-                  <MenuItem key={student._id} value={student._id}>
-                    {student.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                type="date"
-                label="Start Date"
-                value={filters.startDate}
-                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                type="date"
-                label="End Date"
-                value={filters.endDate}
-                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  variant="contained"
-                  onClick={generateReport}
-                  fullWidth
-                >
-                  Generate
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={handleExport}
-                  fullWidth
-                >
-                  Export
-                </Button>
-              </Box>
-            </Grid>
-          </Grid>
-        </Paper>
-      </Grid>
+  const generateSampleData = async () => {
+    try {
+      setGeneratingSamples(true);
+      const token = localStorage.getItem('token');
+      await axios.post(
+        'http://localhost:5000/api/admin/generate-sample-data',
+        {},
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      // Refresh the data after generating samples
+      await fetchData();
+    } catch (err) {
+      console.error('Error generating sample data:', err);
+      setError('Failed to generate sample data');
+    } finally {
+      setGeneratingSamples(false);
+    }
+  };
 
-      {/* Attendance Trends Chart */}
-      <Grid item xs={12}>
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Attendance Trends
-          </Typography>
-          <Box sx={{ height: 300 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={attendanceTrends}>
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h5" gutterBottom>
+        Attendance Reports
+      </Typography>
+
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+      <Grid container spacing={3}>
+        {/* Filters */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Report Filters
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Course"
+                  value={filters.courseId}
+                  onChange={(e) => setFilters({ ...filters, courseId: e.target.value })}
+                >
+                  {courses.map((course) => (
+                    <MenuItem key={course._id} value={course._id}>
+                      {course.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Lecturer"
+                  value={filters.lecturerId}
+                  onChange={(e) => setFilters({ ...filters, lecturerId: e.target.value })}
+                >
+                  {lecturers.map((lecturer) => (
+                    <MenuItem key={lecturer._id} value={lecturer._id}>
+                      {lecturer.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Student"
+                  value={filters.studentId}
+                  onChange={(e) => setFilters({ ...filters, studentId: e.target.value })}
+                >
+                  {students.map((student) => (
+                    <MenuItem key={student._id} value={student._id}>
+                      {student.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="Start Date"
+                  value={filters.startDate}
+                  onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="End Date"
+                  value={filters.endDate}
+                  onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    onClick={generateReport}
+                    fullWidth
+                  >
+                    Generate
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={handleExport}
+                    fullWidth
+                  >
+                    Export
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    onClick={generateSampleData}
+                    disabled={generatingSamples}
+                    sx={{ ml: 1 }}
+                  >
+                    {generatingSamples ? 'Generating...' : 'Generate Sample Data'}
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* Attendance Trends Chart */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Attendance Trends (Last 30 Days)
+            </Typography>
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={attendanceTrends}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="_id" />
+                <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="count" fill="#8884d8" name="Attendance Count" />
+                <Line type="monotone" dataKey="present" stroke="#4caf50" name="Present" />
+                <Line type="monotone" dataKey="absent" stroke="#f44336" name="Absent" />
+                <Line type="monotone" dataKey="late" stroke="#ff9800" name="Late" />
+              </LineChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        {/* Course Statistics Chart */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Course Attendance Rates
+            </Typography>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={courseStats}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="courseCode" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="attendanceRate" fill="#2196f3" name="Attendance Rate (%)" />
               </BarChart>
             </ResponsiveContainer>
-          </Box>
-        </Paper>
-      </Grid>
+          </Paper>
+        </Grid>
 
-      {/* Report Results */}
-      <Grid item xs={12}>
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Report Results
-          </Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Student</TableCell>
-                  <TableCell>Course</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Location</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {reportData.map((record) => (
-                  <TableRow key={record._id}>
-                    <TableCell>{record.student?.name}</TableCell>
-                    <TableCell>{record.course?.name}</TableCell>
-                    <TableCell>
-                      {new Date(record.date).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>{record.status}</TableCell>
-                    <TableCell>
-                      {record.location
-                        ? `${record.location.latitude}, ${record.location.longitude}`
-                        : 'N/A'}
-                    </TableCell>
+        {/* Report Results */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Report Results
+            </Typography>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Student</TableCell>
+                    <TableCell>Course</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Location</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
+                </TableHead>
+                <TableBody>
+                  {reportData.map((record) => (
+                    <TableRow key={record._id}>
+                      <TableCell>{record.student?.name}</TableCell>
+                      <TableCell>{record.course?.name}</TableCell>
+                      <TableCell>
+                        {new Date(record.date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>{record.status}</TableCell>
+                      <TableCell>
+                        {record.location
+                          ? `${record.location.latitude}, ${record.location.longitude}`
+                          : 'N/A'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
       </Grid>
-    </Grid>
+    </Box>
   );
 };
 

@@ -28,6 +28,7 @@ import AttendanceMonitoring from './AttendanceMonitoring';
 import Reports from './Reports';
 import DepartmentManagement from './DepartmentManagement';
 import FacultyManagement from './FacultyManagement';
+import ProgramManagement from './ProgramManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -164,27 +165,26 @@ const AdminDashboard = () => {
           textColor="primary"
           variant="fullWidth"
         >
-          <Tab label="Faculties" icon={<BusinessIcon />} />
+          <Tab label="Users" icon={<PeopleIcon />}/>
+          <Tab label="Faculties" icon={<BusinessIcon />}/>
           <Tab label="Departments" icon={<BusinessIcon />} />
-          <Tab label="User Management" icon={<PeopleIcon />} />
-          <Tab label="Course Management" icon={<SchoolIcon />} />
+          <Tab label="Programs" icon={<BusinessIcon />}/>
+          <Tab label="Courses" icon={<SchoolIcon />}/>
           <Tab label="Attendance" icon={<AssessmentIcon />} />
           <Tab label="Reports" icon={<AssessmentIcon />} />
         </Tabs>
 
         {/* Tab Panels */}
         <Box sx={{ p: 3 }}>
-          {activeTab === 0 && <FacultyManagement />}
-          {activeTab === 1 && <DepartmentManagement />}
-          {activeTab === 2 && <UserManagement />}
-          {activeTab === 3 && <CourseManagement />}
-          {activeTab === 4 && <AttendanceMonitoring />}
-          {activeTab === 5 && <Reports />}
+          {activeTab === 0 && <UserManagement />}
+          {activeTab === 1 && <FacultyManagement />}
+          {activeTab === 2 && <DepartmentManagement />}
+          {activeTab === 3 && <ProgramManagement />}
+          {activeTab === 4 && <CourseManagement />}
+          {activeTab === 5 && <AttendanceMonitoring />}
+          {activeTab === 6 && <Reports />}
         </Box>
       </Paper>
-
-      {/* Add this to your navigation links */}
-      <Link to="/admin/programs">Program Management</Link>
     </Container>
   );
 };

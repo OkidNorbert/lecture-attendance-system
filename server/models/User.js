@@ -2,45 +2,55 @@
 const mongoose = require("mongoose");
 const bcrypt = require('bcryptjs');
 
-const UserSchema = new mongoose.Schema({
+const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true
+    required: [true, 'Name is required'],
+    trim: true
   },
   email: {
     type: String,
-    required: true,
-    unique: true
+    required: [true, 'Email is required'],
+    unique: true,
+    trim: true,
+    lowercase: true
   },
   password: {
     type: String,
-    required: true
+    required: [true, 'Password is required']
   },
   role: {
     type: String,
-    enum: ['admin', 'lecturer', 'student'],
-    required: true
+    enum: ['student', 'lecturer', 'admin'],
+    required: [true, 'Role is required']
   },
   department: {
-    type: String,
-    required: function() {
-      return this.role !== 'admin';
-    }
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Department'
   },
-  studentId: {
-    type: String,
-    required: function() {
-      return this.role === 'student';
-    }
+  courses: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course'
+  }],
+  isApproved: {
+    type: Boolean,
+    default: false
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  isActive: {
+    type: Boolean,
+    default: true
   }
+}, {
+  timestamps: true
 });
 
+// Add indexes for better query performance
+userSchema.index({ role: 1 });
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ department: 1, role: 1 });
+
 // Hash password before saving
-UserSchema.pre('save', async function(next) {
+userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) {
     return next();
   }
@@ -54,4 +64,5 @@ UserSchema.pre('save', async function(next) {
   }
 });
 
-module.exports = mongoose.model("User", UserSchema);
+const User = mongoose.model('User', userSchema);
+module.exports = User;

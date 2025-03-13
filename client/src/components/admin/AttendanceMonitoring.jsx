@@ -1,207 +1,212 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Box,
   Paper,
+  Typography,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Typography,
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  Chip,
+  CircularProgress,
+  Alert,
+  TablePagination,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField
 } from '@mui/material';
-import {
-  CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
-} from '@mui/icons-material';
+import axios from 'axios';
 
 const AttendanceMonitoring = () => {
-  const [activeSessions, setActiveSessions] = useState([]);
-  const [recentAttendance, setRecentAttendance] = useState([]);
-  const [stats, setStats] = useState({
-    totalPresent: 0,
-    totalAbsent: 0,
-    activeSessionsCount: 0,
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [filter, setFilter] = useState({
+    course: '',
+    student: '',
+    date: ''
   });
 
   useEffect(() => {
-    fetchActiveSessions();
-    fetchRecentAttendance();
+    fetchAttendanceRecords();
   }, []);
 
-  const fetchActiveSessions = async () => {
+  const fetchAttendanceRecords = async () => {
     try {
-      const response = await fetch('/api/admin/active-sessions');
-      const data = await response.json();
-      setActiveSessions(data);
-      setStats(prev => ({ ...prev, activeSessionsCount: data.length }));
-    } catch (error) {
-      console.error('Error fetching active sessions:', error);
+      setLoading(true);
+      setError('');
+      
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        'http://localhost:5000/api/admin/attendance',
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      console.log('Attendance records:', response.data); // Debug log
+      setRecords(response.data);
+    } catch (err) {
+      console.error('Error fetching attendance records:', err);
+      setError(err.response?.data?.msg || 'Failed to fetch attendance records');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchRecentAttendance = async () => {
-    try {
-      const response = await fetch('/api/admin/attendance');
-      const data = await response.json();
-      setRecentAttendance(data);
-      
-      // Calculate statistics
-      const present = data.filter(record => record.status === 'present').length;
-      setStats(prev => ({
-        ...prev,
-        totalPresent: present,
-        totalAbsent: data.length - present,
-      }));
-    } catch (error) {
-      console.error('Error fetching attendance records:', error);
-    }
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
   };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const handleFilterChange = (field) => (event) => {
+    setFilter({ ...filter, [field]: event.target.value });
+    setPage(0);
+  };
+
+  const filteredRecords = records.filter(record => {
+    return (
+      (!filter.course || record.courseId?.code?.toLowerCase().includes(filter.course.toLowerCase())) &&
+      (!filter.student || record.studentId?.name?.toLowerCase().includes(filter.student.toLowerCase())) &&
+      (!filter.date || new Date(record.date).toLocaleDateString().includes(filter.date))
+    );
+  });
 
   return (
-    <Grid container spacing={3}>
-      {/* Statistics Cards */}
-      <Grid item xs={12}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  Active Sessions
-                </Typography>
-                <Typography variant="h4">
-                  {stats.activeSessionsCount}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  Present Today
-                </Typography>
-                <Typography variant="h4" color="success.main">
-                  {stats.totalPresent}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  Absent Today
-                </Typography>
-                <Typography variant="h4" color="error.main">
-                  {stats.totalAbsent}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Grid>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h5" gutterBottom>
+        Attendance Monitoring
+      </Typography>
 
-      {/* Active Sessions */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>
-          Active Sessions
-        </Typography>
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Course</TableCell>
-                <TableCell>Lecturer</TableCell>
-                <TableCell>Start Time</TableCell>
-                <TableCell>Expiry Time</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {activeSessions.map((session) => (
-                <TableRow key={session._id}>
-                  <TableCell>{session.course.name}</TableCell>
-                  <TableCell>{session.lecturer.name}</TableCell>
-                  <TableCell>
-                    {new Date(session.startTime).toLocaleTimeString()}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(session.expiryTime).toLocaleTimeString()}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      color="success"
-                      label="Active"
-                      size="small"
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Grid>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {/* Recent Attendance */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>
-          Recent Attendance Records
-        </Typography>
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Student</TableCell>
-                <TableCell>Course</TableCell>
-                <TableCell>Time</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Location</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {recentAttendance.map((record) => (
-                <TableRow key={record._id}>
-                  <TableCell>{record.student.name}</TableCell>
-                  <TableCell>{record.course.name}</TableCell>
-                  <TableCell>
-                    {new Date(record.timestamp).toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    {record.status === 'present' ? (
-                      <Chip
-                        icon={<CheckCircleIcon />}
-                        label="Present"
-                        color="success"
-                        size="small"
-                      />
-                    ) : (
-                      <Chip
-                        icon={<CancelIcon />}
-                        label="Absent"
-                        color="error"
-                        size="small"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {record.location ? (
-                      `${record.location.latitude}, ${record.location.longitude}`
-                    ) : (
-                      'N/A'
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Grid>
-    </Grid>
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+          <TextField
+            label="Course Filter"
+            value={filter.course}
+            onChange={handleFilterChange('course')}
+            size="small"
+          />
+          <TextField
+            label="Student Filter"
+            value={filter.student}
+            onChange={handleFilterChange('student')}
+            size="small"
+          />
+          <TextField
+            label="Date Filter"
+            value={filter.date}
+            onChange={handleFilterChange('date')}
+            size="small"
+            placeholder="MM/DD/YYYY"
+          />
+        </Box>
+
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date & Time</TableCell>
+                    <TableCell>Course</TableCell>
+                    <TableCell>Student</TableCell>
+                    <TableCell>Lecturer</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Check-in Time</TableCell>
+                    <TableCell>Location</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredRecords
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((record) => (
+                      <TableRow key={record._id}>
+                        <TableCell>
+                          {new Date(record.date).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Box>
+                            <Typography variant="body2" fontWeight="bold">
+                              {record.courseId?.code}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary">
+                              {record.courseId?.name}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box>
+                            <Typography variant="body2">
+                              {record.studentId?.name}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary">
+                              {record.studentId?.email}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box>
+                            <Typography variant="body2">
+                              {record.lecturerId?.name}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary">
+                              {record.lecturerId?.email}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: record.status === 'present' ? 'success.main' : 'error.main',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            {record.status?.toUpperCase()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {record.checkInTime ? 
+                            new Date(record.checkInTime).toLocaleTimeString() : 
+                            'N/A'
+                          }
+                        </TableCell>
+                        <TableCell>
+                          {record.location || 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25, 50]}
+              component="div"
+              count={filteredRecords.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+            />
+          </>
+        )}
+      </Paper>
+    </Box>
   );
 };
 
