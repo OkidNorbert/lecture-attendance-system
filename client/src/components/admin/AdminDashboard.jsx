@@ -47,6 +47,7 @@ import Reports from './Reports';
 import DepartmentManagement from './DepartmentManagement';
 import FacultyManagement from './FacultyManagement';
 import ProgramManagement from './ProgramManagement';
+import SystemOverview from './SystemOverview';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -111,6 +112,7 @@ const AdminDashboard = () => {
   };
 
   const tabItems = [
+    { label: 'Dashboard', icon: <DashboardIcon />, component: <SystemOverview stats={stats} /> },
     { label: 'Users', icon: <PeopleIcon />, component: <UserManagement /> },
     { label: 'Faculties', icon: <BusinessIcon />, component: <FacultyManagement /> },
     { label: 'Departments', icon: <BusinessIcon />, component: <DepartmentManagement /> },
@@ -156,6 +158,7 @@ const AdminDashboard = () => {
               borderLeft: activeTab === index ? '4px solid #6a11cb' : '4px solid transparent',
               bgcolor: activeTab === index ? 'rgba(106, 17, 203, 0.1)' : 'transparent'
             }}
+            aria-label={item.label}
           >
             <ListItemIcon sx={{ color: activeTab === index ? '#6a11cb' : 'inherit' }}>
               {item.icon}
