@@ -11,7 +11,8 @@ const routes = {
   attendance: require("./routes/attendance"),
   qr: require("./routes/qrcode"),
   admin: require('./routes/admin'),
-  trends: require('./routes/trends')
+  trends: require('./routes/trends'),
+  courses: require('./routes/courses')
 };
 
 // Import middleware
@@ -40,6 +41,7 @@ app.use("/api/attendance", routes.attendance);
 app.use("/api/qrcode", routes.qr);
 app.use('/api/admin', routes.admin);
 app.use('/api/attendance/trends', routes.trends);
+app.use('/api/courses', routes.courses);
 
 // Base route
 app.get("/", (req, res) => {

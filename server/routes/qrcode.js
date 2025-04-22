@@ -23,7 +23,18 @@ router.post("/generate", authMiddleware, async (req, res) => {
     // ✅ Store session in database (prevent duplicate sessionId)
     await Session.findOneAndUpdate(
       { sessionId },
-      { course, date, expiryTime, latitude, longitude, radius, lecturer: req.user.name },
+      { 
+        sessionId,
+        lecturerId: req.user.id,
+        program: course, // Store the course name as program
+        expiryTime,
+        location: {
+          latitude,
+          longitude
+        },
+        radius,
+        status: 'active'
+      },
       { new: true, upsert: true }
     );
 

@@ -8,11 +8,19 @@ const SessionSchema = new mongoose.Schema({
   },
   courseId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Course',
-    required: true
+    ref: 'Course'
+  },
+  sessionId: {
+    type: String,
+    required: true,
+    unique: true
   },
   program: {
     type: String,
+    required: true
+  },
+  expiryTime: {
+    type: Number,
     required: true
   },
   totalStudents: {

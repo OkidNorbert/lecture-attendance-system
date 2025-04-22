@@ -1,11 +1,18 @@
 {
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
     "@heroicons/react": "^2.0.18",
+    "@mui/icons-material": "^7.0.2",
+    "@mui/material": "^7.0.2",
     "@tailwindcss/forms": "^0.5.7",
     "axios": "^1.6.2",
+    "html5-qrcode": "^2.3.8",
+    "mongodb": "^6.15.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0"
+    "react-router-dom": "^6.20.0",
+    "recharts": "^2.15.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

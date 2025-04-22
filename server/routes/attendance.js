@@ -4,6 +4,7 @@ const Attendance = require("../models/Attendance");
 const Session = require("../models/Session"); // ✅ Ensure session validation
 const router = express.Router();
 const Course = require('../models/Course');
+const mongoose = require('mongoose');
 
 // ✅ Mark Attendance with Expiry Validation
 router.post("/mark", authMiddleware, async (req, res) => {
@@ -30,19 +31,52 @@ router.post("/mark", authMiddleware, async (req, res) => {
     }
 
     // ✅ Prevent duplicate attendance
-    const existingRecord = await Attendance.findOne({ studentId: req.user.id, sessionId });
+    const existingRecord = await Attendance.findOne({ 
+      studentId: req.user.id, 
+      sessionId: session._id 
+    });
+    
     if (existingRecord) return res.status(400).json({ msg: "❌ Attendance already marked!" });
+
+    // Find the course ID if possible, otherwise create a placeholder
+    let courseId;
+    let lecturerId;
+    
+    // Try to use session's courseId if available
+    if (session.courseId) {
+      courseId = session.courseId;
+    } else {
+      // Try to find a course by name
+      try {
+        const courseRecord = await Course.findOne({ 
+          name: { $regex: new RegExp(course, 'i') } // Case-insensitive search
+        });
+        
+        if (courseRecord) {
+          courseId = courseRecord._id;
+        } else {
+          // Create a placeholder ObjectId if no course found
+          courseId = new mongoose.Types.ObjectId();
+        }
+      } catch (err) {
+        console.error("Error finding course:", err);
+        courseId = new mongoose.Types.ObjectId();
+      }
+    }
+    
+    // Get lecturerId from session or use the placeholder
+    lecturerId = session.lecturerId || new mongoose.Types.ObjectId();
 
     // ✅ Save attendance record
     const attendance = new Attendance({
       studentId: req.user.id,
-      name,
-      course,
-      date,
-      sessionId,
-      studentLat,
-      studentLon,
-      timestamp: new Date().toLocaleTimeString("en-US", { hour12: false })
+      courseId: courseId,
+      lecturerId: lecturerId,
+      date: new Date(date),
+      status: 'present',
+      checkInTime: new Date(),
+      location: `${studentLat},${studentLon}`,
+      sessionId: session._id
     });
 
     await attendance.save();

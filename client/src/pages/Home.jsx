@@ -46,7 +46,7 @@ const Home = () => {
 
       // Store auth data
       localStorage.setItem('token', response.data.token);
-      localStorage.setItem('role', response.data.role);
+      localStorage.setItem('userRole', response.data.role);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
       // Navigate based on role
