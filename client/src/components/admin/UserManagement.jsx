@@ -37,7 +37,7 @@ const UserManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'user',
+    role: 'student',
     password: ''
   });
   const [editingUser, setEditingUser] = useState(null);
@@ -96,7 +96,7 @@ const UserManagement = () => {
         }
       );
       setUsers([...users, response.data]);
-      setFormData({ name: '', email: '', role: 'user', password: '' });
+      setFormData({ name: '', email: '', role: 'student', password: '' });
       setError('');
     } catch (err) {
       setError(err.response?.data?.msg || 'Error creating user');
@@ -172,7 +172,7 @@ const UserManagement = () => {
 
   const handleDialogClose = () => {
     setOpenDialog(false);
-    setFormData({ name: '', email: '', role: 'user', password: '' });
+    setFormData({ name: '', email: '', role: 'student', password: '' });
     setEditingUser(null);
   };
 
@@ -213,9 +213,9 @@ const UserManagement = () => {
                 label="Role"
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               >
-                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="student">Student</MenuItem>
+                <MenuItem value="lecturer">Lecturer</MenuItem>
                 <MenuItem value="admin">Admin</MenuItem>
-                <MenuItem value="faculty">Faculty</MenuItem>
               </Select>
             </FormControl>
             <TextField
@@ -333,9 +333,9 @@ const UserManagement = () => {
                 label="Role"
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               >
-                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="student">Student</MenuItem>
+                <MenuItem value="lecturer">Lecturer</MenuItem>
                 <MenuItem value="admin">Admin</MenuItem>
-                <MenuItem value="faculty">Faculty</MenuItem>
               </Select>
             </FormControl>
             <TextField
