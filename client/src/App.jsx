@@ -45,6 +45,8 @@ function App() {
       <Route path="/attendance-history" element={<AttendanceHistory />} />
       <Route path="/generate-qr" element={<GenerateQR />} />
       <Route path="/scan-qr" element={<ScanQR />} />
+      <Route path="/session/:id" element={<SessionDetails />} />
+      <Route path="/session-details/:id" element={<SessionDetails />} />
 
       {/* Catch all route - redirect to home */}
       <Route path="*" element={<Navigate to="/" replace />} />

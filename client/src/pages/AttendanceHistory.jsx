@@ -185,7 +185,7 @@ const AttendanceHistory = () => {
               <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead>
+          <thead>
                       <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
                         {userRole === "lecturer" && <th className="py-4 px-4 text-left">Student</th>}
                         <th className="py-4 px-4 text-left">Course</th>
@@ -193,9 +193,9 @@ const AttendanceHistory = () => {
                         <th className="py-4 px-4 text-left">Time</th>
                         <th className="py-4 px-4 text-left">Status</th>
                         {userRole === "lecturer" && <th className="py-4 px-4 text-center">Actions</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
+            </tr>
+          </thead>
+          <tbody>
                       {groupedRecords[date].map((record, index) => {
                         const statusStyle = getStatusStyle(record.status);
                         return (
@@ -249,11 +249,11 @@ const AttendanceHistory = () => {
                                 </button>
                               </td>
                             )}
-                          </tr>
+              </tr>
                         );
                       })}
-                    </tbody>
-                  </table>
+          </tbody>
+        </table>
                 </div>
               </div>
             </div>

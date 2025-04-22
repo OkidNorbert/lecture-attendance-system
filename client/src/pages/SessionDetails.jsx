@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -65,13 +65,30 @@ const SessionDetails = () => {
     programComparison: []
   });
 
-  const { realTimeData, error: wsError } = useRealTimeUpdates(id);
+  const { realTimeData, error: wsError, isConnected } = useRealTimeUpdates(id);
   const [activeTimeframe, setActiveTimeframe] = useState('daily');
   const [isLoading, setIsLoading] = useState(false);
 
   const COLORS = ['#4CAF50', '#f44336', '#FFA726'];
 
+  const navigate = useNavigate();
+
   useEffect(() => {
+    // Check if user is authenticated
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Authentication required. Please log in.');
+      setLoading(false);
+      return;
+    }
+
+    // Check if we have a valid ID parameter
+    if (!id) {
+      setError('Session ID is missing. Please go back and try again.');
+      setLoading(false);
+      return;
+    }
+
     fetchSessionDetails();
   }, [id]);
 
@@ -113,15 +130,15 @@ const SessionDetails = () => {
 
   // Update session data when real-time updates arrive
   useEffect(() => {
-    if (realTimeData) {
+    if (realTimeData && session) {
       setSession(prev => ({
         ...prev,
         presentCount: realTimeData.presentCount,
         attendees: [
-          ...prev.attendees.filter(a => 
-            !realTimeData.recentCheckins.find(rc => rc.student === a.studentId.name)
+          ...(prev.attendees || []).filter(a => 
+            !realTimeData.recentCheckins?.find(rc => rc.student === a.studentId?.name)
           ),
-          ...realTimeData.recentCheckins.map(rc => ({
+          ...(realTimeData.recentCheckins || []).map(rc => ({
             studentId: { name: rc.student },
             checkInTime: rc.time,
             status: rc.status
@@ -131,38 +148,75 @@ const SessionDetails = () => {
     }
   }, [realTimeData]);
 
+  useEffect(() => {
+    if (wsError) {
+      console.warn('WebSocket error:', wsError);
+      // Don't need to show this to the user - will fall back to static data
+    }
+  }, [wsError]);
+
   const fetchSessionDetails = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
+      
+      // Debug log to ensure we're using the correct ID
+      console.log(`Fetching session details for ID: ${id}`);
+      
       const response = await axios.get(`http://localhost:5000/api/attendance/session/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
+      // Check if the response contains valid data
+      if (!response.data) {
+        throw new Error('No session data returned from the server');
+      }
+      
+      console.log('Session data received:', response.data);
       setSession(response.data);
       calculateStats(response.data);
     } catch (err) {
-      setError(err.response?.data?.msg || 'Error fetching session details');
+      console.error('Error fetching session details:', err);
+      // Handle different error types
+      if (err.response) {
+        if (err.response.status === 401 || err.response.status === 403) {
+          setError('Access denied. You may not have permission to view this session.');
+        } else if (err.response.status === 404) {
+          setError('Session not found. It may have been deleted or the ID is incorrect.');
+        } else {
+          setError(err.response.data?.msg || 'Failed to load session details. Please try again later.');
+        }
+      } else if (err.request) {
+        setError('Network error. Please check your connection and try again.');
+      } else {
+        setError(err.message || 'An unexpected error occurred.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const calculateStats = (sessionData) => {
+    if (!sessionData || !sessionData.attendees) {
+      setAttendanceStats({ present: 0, absent: 0, late: 0 });
+      return;
+    }
+    
     const stats = {
       present: sessionData.attendees.filter(a => a.status === 'present').length,
       late: sessionData.attendees.filter(a => a.status === 'late').length,
-      absent: sessionData.totalStudents - sessionData.presentCount
+      absent: (sessionData.totalStudents || 0) - (sessionData.presentCount || 0)
     };
     setAttendanceStats(stats);
   };
 
   const pieData = [
-    { name: 'Present', value: attendanceStats.present },
-    { name: 'Absent', value: attendanceStats.absent },
-    { name: 'Late', value: attendanceStats.late }
+    { name: 'Present', value: attendanceStats.present || 0 },
+    { name: 'Absent', value: attendanceStats.absent || 0 },
+    { name: 'Late', value: attendanceStats.late || 0 }
   ];
 
-  const timeData = session?.attendees
+  const timeData = (session?.attendees || [])
     .filter(a => a.checkInTime)
     .map(a => ({
       time: new Date(a.checkInTime).toLocaleTimeString(),
@@ -213,28 +267,71 @@ const SessionDetails = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-        <CircularProgress />
-      </Box>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+          <div className="w-16 h-16 border-t-4 border-b-4 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">Loading Session Details</h2>
+          <p className="text-gray-500">Please wait while we fetch the session information...</p>
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4 }}>
-        <Alert severity="error">{error}</Alert>
-      </Container>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-lg">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-red-500 text-2xl">⚠️</span>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Unable to Load Session</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <div className="flex flex-wrap justify-center gap-4">
+            <button 
+              onClick={() => fetchSessionDetails()}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200"
+            >
+              Try Again
+            </button>
+            <button 
+              onClick={() => navigate('/lecturer')}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      {/* WebSocket Connection Status */}
+      {isConnected && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          <span style={{ display: 'flex', alignItems: 'center' }}>
+            <span 
+              style={{ 
+                display: 'inline-block', 
+                width: '10px', 
+                height: '10px', 
+                backgroundColor: 'green', 
+                borderRadius: '50%', 
+                marginRight: '8px' 
+              }}
+            ></span>
+            Real-time updates active
+          </span>
+        </Alert>
+      )}
+
       {/* Real-time Updates Banner */}
-      {realTimeData && (
+      {realTimeData && realTimeData.lastUpdate && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Last updated: {new Date(realTimeData.lastUpdate).toLocaleTimeString()}
           {' | '}
-          Current attendance rate: {realTimeData.attendanceRate.toFixed(1)}%
+          Current attendance rate: {realTimeData.attendanceRate ? realTimeData.attendanceRate.toFixed(1) : '0'}%
         </Alert>
       )}
 
@@ -251,7 +348,7 @@ const SessionDetails = () => {
                   Course
                 </Typography>
                 <Typography variant="h5">
-                  {session?.courseId?.name}
+                  {session?.courseId?.name || 'N/A'}
                 </Typography>
               </CardContent>
             </Card>
@@ -263,7 +360,7 @@ const SessionDetails = () => {
                   Program
                 </Typography>
                 <Typography variant="h5">
-                  {session?.program}
+                  {session?.program || 'N/A'}
                 </Typography>
               </CardContent>
             </Card>
@@ -275,7 +372,7 @@ const SessionDetails = () => {
                   Date & Time
                 </Typography>
                 <Typography variant="h5">
-                  {new Date(session?.createdAt).toLocaleString()}
+                  {session?.createdAt ? new Date(session.createdAt).toLocaleString() : 'N/A'}
                 </Typography>
               </CardContent>
             </Card>
@@ -302,7 +399,7 @@ const SessionDetails = () => {
           </Box>
         ) : (
           <Box>
-            {activeTimeframe === 'daily' && (
+            {activeTimeframe === 'daily' && trends.daily && trends.daily.length > 0 && (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={trends.daily}>
                   <XAxis dataKey="date" />
@@ -313,7 +410,7 @@ const SessionDetails = () => {
                 </BarChart>
               </ResponsiveContainer>
             )}
-            {activeTimeframe === 'weekly' && (
+            {activeTimeframe === 'weekly' && trends.weekly && trends.weekly.length > 0 && (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={trends.weekly}>
                   <XAxis dataKey="week" />
@@ -325,7 +422,7 @@ const SessionDetails = () => {
                 </LineChart>
               </ResponsiveContainer>
             )}
-            {activeTimeframe === 'monthly' && (
+            {activeTimeframe === 'monthly' && trends.monthly && trends.monthly.length > 0 && (
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={trends.monthly}>
                   <XAxis dataKey="month" />
@@ -341,6 +438,17 @@ const SessionDetails = () => {
                 </AreaChart>
               </ResponsiveContainer>
             )}
+            {!(
+              (activeTimeframe === 'daily' && trends.daily && trends.daily.length > 0) ||
+              (activeTimeframe === 'weekly' && trends.weekly && trends.weekly.length > 0) ||
+              (activeTimeframe === 'monthly' && trends.monthly && trends.monthly.length > 0)
+            ) && (
+              <Box p={3} textAlign="center">
+                <Typography variant="body1" color="textSecondary">
+                  No trend data available for this timeframe
+                </Typography>
+              </Box>
+            )}
           </Box>
         )}
       </Paper>
@@ -352,25 +460,33 @@ const SessionDetails = () => {
             <Typography variant="h6" gutterBottom>
               Attendance Distribution
             </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  label
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {pieData && pieData.some(item => item.value > 0) ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box p={3} textAlign="center">
+                <Typography variant="body1" color="textSecondary">
+                  No attendance data available yet
+                </Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
         <Grid item xs={12} md={6}>
@@ -378,15 +494,23 @@ const SessionDetails = () => {
             <Typography variant="h6" gutterBottom>
               Check-in Time Distribution
             </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={timeData}>
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="count" name="Students" fill="#2196F3" />
-              </BarChart>
-            </ResponsiveContainer>
+            {timeData && timeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={timeData}>
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="count" name="Students" fill="#2196F3" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box p={3} textAlign="center">
+                <Typography variant="body1" color="textSecondary">
+                  No check-in data available yet
+                </Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
 
@@ -396,20 +520,28 @@ const SessionDetails = () => {
             <Typography variant="h6" gutterBottom>
               Program Attendance Comparison
             </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <RadarChart data={trends.programComparison}>
-                <PolarGrid />
-                <PolarAngleAxis dataKey="program" />
-                <PolarRadiusAxis />
-                <Radar
-                  name="Attendance Rate"
-                  dataKey="rate"
-                  stroke="#8884d8"
-                  fill="#8884d8"
-                  fillOpacity={0.6}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
+            {trends.programComparison && trends.programComparison.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart data={trends.programComparison}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="program" />
+                  <PolarRadiusAxis />
+                  <Radar
+                    name="Attendance Rate"
+                    dataKey="rate"
+                    stroke="#8884d8"
+                    fill="#8884d8"
+                    fillOpacity={0.6}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box p={3} textAlign="center">
+                <Typography variant="body1" color="textSecondary">
+                  No program comparison data available
+                </Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
 
@@ -419,20 +551,28 @@ const SessionDetails = () => {
             <Typography variant="h6" gutterBottom>
               Hourly Attendance Pattern
             </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={trends.daily}>
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <Tooltip />
-                <Area
-                  type="monotone"
-                  dataKey="attendanceRate"
-                  stroke="#8884d8"
-                  fill="#8884d8"
-                  fillOpacity={0.3}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {trends.daily && trends.daily.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={trends.daily}>
+                  <XAxis dataKey="hour" />
+                  <YAxis />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="attendanceRate"
+                    stroke="#8884d8"
+                    fill="#8884d8"
+                    fillOpacity={0.3}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box p={3} textAlign="center">
+                <Typography variant="body1" color="textSecondary">
+                  No hourly attendance data available
+                </Typography>
+              </Box>
+            )}
           </Paper>
         </Grid>
 
@@ -442,12 +582,18 @@ const SessionDetails = () => {
             <Typography variant="h6" gutterBottom>
               Attendance Location Map
             </Typography>
-            {session?.location && (
+            {session?.location?.latitude && session?.location?.longitude ? (
               <AttendanceMap
                 sessionLocation={session.location}
-                attendees={session.attendees}
+                attendees={session.attendees || []}
                 radius={session.radius || 50}
               />
+            ) : (
+              <Box p={3} textAlign="center">
+                <Typography variant="body1" color="textSecondary">
+                  No location data available for this session
+                </Typography>
+              </Box>
             )}
           </Paper>
         </Grid>
@@ -470,36 +616,44 @@ const SessionDetails = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {session?.attendees.map((attendee, index) => (
-                <TableRow key={index}>
-                  <TableCell>{attendee.studentId.name}</TableCell>
-                  <TableCell>{attendee.studentId.email}</TableCell>
-                  <TableCell>
-                    {attendee.checkInTime 
-                      ? new Date(attendee.checkInTime).toLocaleTimeString()
-                      : 'N/A'
-                    }
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={attendee.status}
-                      color={
-                        attendee.status === 'present' 
-                          ? 'success' 
-                          : attendee.status === 'late' 
-                            ? 'warning' 
-                            : 'error'
+              {session?.attendees && session.attendees.length > 0 ? (
+                session.attendees.map((attendee, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{attendee?.studentId?.name || 'Unknown'}</TableCell>
+                    <TableCell>{attendee?.studentId?.email || 'N/A'}</TableCell>
+                    <TableCell>
+                      {attendee?.checkInTime 
+                        ? new Date(attendee.checkInTime).toLocaleTimeString()
+                        : 'N/A'
                       }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {attendee.location 
-                      ? `${attendee.location.latitude.toFixed(6)}, ${attendee.location.longitude.toFixed(6)}`
-                      : 'N/A'
-                    }
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={attendee?.status || 'Unknown'}
+                        color={
+                          attendee?.status === 'present' 
+                            ? 'success' 
+                            : attendee?.status === 'late' 
+                              ? 'warning' 
+                              : 'error'
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {attendee?.location?.latitude && attendee?.location?.longitude
+                        ? `${attendee.location.latitude.toFixed(6)}, ${attendee.location.longitude.toFixed(6)}`
+                        : 'N/A'
+                      }
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    No attendance records available
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </TableContainer>
