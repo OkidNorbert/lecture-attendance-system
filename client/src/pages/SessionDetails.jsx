@@ -42,7 +42,7 @@ import {
   PolarRadiusAxis,
   Radar
 } from 'recharts';
-import axios from 'axios';
+import axios from '../utils/axios';
 import AttendanceMap from '../components/AttendanceMap';
 import useRealTimeUpdates from '../hooks/useRealTimeUpdates';
 
@@ -96,20 +96,11 @@ const SessionDetails = () => {
   useEffect(() => {
     const fetchTrends = async () => {
       try {
-        const token = localStorage.getItem('token');
         const [dailyRes, weeklyRes, monthlyRes, comparisonRes] = await Promise.all([
-          axios.get(`http://localhost:5000/api/attendance/trends/daily/${session?.courseId?._id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get(`http://localhost:5000/api/attendance/trends/weekly/${session?.courseId?._id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get(`http://localhost:5000/api/attendance/trends/monthly-comparison`, {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get(`http://localhost:5000/api/attendance/trends/program-comparison`, {
-            headers: { Authorization: `Bearer ${token}` }
-          })
+          axios.get(`/api/attendance/trends/daily/${session?.courseId?._id}`),
+          axios.get(`/api/attendance/trends/weekly/${session?.courseId?._id}`),
+          axios.get(`/api/attendance/trends/monthly-comparison`),
+          axios.get(`/api/attendance/trends/program-comparison`)
         ]);
 
         setTrends({
@@ -158,14 +149,11 @@ const SessionDetails = () => {
   const fetchSessionDetails = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
       
       // Debug log to ensure we're using the correct ID
       console.log(`Fetching session details for ID: ${id}`);
       
-      const response = await axios.get(`http://localhost:5000/api/attendance/session/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(`/api/attendance/session/${id}`);
       
       // Check if the response contains valid data
       if (!response.data) {
@@ -238,7 +226,6 @@ const SessionDetails = () => {
     setActiveTimeframe(timeframe);
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('token');
       let endpoint;
       switch (timeframe) {
         case 'daily':
@@ -254,9 +241,7 @@ const SessionDetails = () => {
           endpoint = `/api/attendance/trends/daily/${session.courseId}`;
       }
 
-      const response = await axios.get(endpoint, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(endpoint);
       setTrends(prev => ({ ...prev, [timeframe]: response.data }));
     } catch (err) {
       setError(err.response?.data?.msg || 'Error fetching trend data');
@@ -461,25 +446,25 @@ const SessionDetails = () => {
               Attendance Distribution
             </Typography>
             {pieData && pieData.some(item => item.value > 0) ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label
-                  >
-                    {pieData.map((entry, index) => (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  label
+                >
+                  {pieData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
             ) : (
               <Box p={3} textAlign="center">
                 <Typography variant="body1" color="textSecondary">
@@ -495,15 +480,15 @@ const SessionDetails = () => {
               Check-in Time Distribution
             </Typography>
             {timeData && timeData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={timeData}>
-                  <XAxis dataKey="time" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="count" name="Students" fill="#2196F3" />
-                </BarChart>
-              </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={timeData}>
+                <XAxis dataKey="time" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="count" name="Students" fill="#2196F3" />
+              </BarChart>
+            </ResponsiveContainer>
             ) : (
               <Box p={3} textAlign="center">
                 <Typography variant="body1" color="textSecondary">
@@ -521,20 +506,20 @@ const SessionDetails = () => {
               Program Attendance Comparison
             </Typography>
             {trends.programComparison && trends.programComparison.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <RadarChart data={trends.programComparison}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="program" />
-                  <PolarRadiusAxis />
-                  <Radar
-                    name="Attendance Rate"
-                    dataKey="rate"
-                    stroke="#8884d8"
-                    fill="#8884d8"
-                    fillOpacity={0.6}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={300}>
+              <RadarChart data={trends.programComparison}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="program" />
+                <PolarRadiusAxis />
+                <Radar
+                  name="Attendance Rate"
+                  dataKey="rate"
+                  stroke="#8884d8"
+                  fill="#8884d8"
+                  fillOpacity={0.6}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
             ) : (
               <Box p={3} textAlign="center">
                 <Typography variant="body1" color="textSecondary">
@@ -552,20 +537,20 @@ const SessionDetails = () => {
               Hourly Attendance Pattern
             </Typography>
             {trends.daily && trends.daily.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={trends.daily}>
-                  <XAxis dataKey="hour" />
-                  <YAxis />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="attendanceRate"
-                    stroke="#8884d8"
-                    fill="#8884d8"
-                    fillOpacity={0.3}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={trends.daily}>
+                <XAxis dataKey="hour" />
+                <YAxis />
+                <Tooltip />
+                <Area
+                  type="monotone"
+                  dataKey="attendanceRate"
+                  stroke="#8884d8"
+                  fill="#8884d8"
+                  fillOpacity={0.3}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
             ) : (
               <Box p={3} textAlign="center">
                 <Typography variant="body1" color="textSecondary">
@@ -618,32 +603,32 @@ const SessionDetails = () => {
             <TableBody>
               {session?.attendees && session.attendees.length > 0 ? (
                 session.attendees.map((attendee, index) => (
-                  <TableRow key={index}>
+                <TableRow key={index}>
                     <TableCell>{attendee?.studentId?.name || 'Unknown'}</TableCell>
                     <TableCell>{attendee?.studentId?.email || 'N/A'}</TableCell>
-                    <TableCell>
+                  <TableCell>
                       {attendee?.checkInTime 
-                        ? new Date(attendee.checkInTime).toLocaleTimeString()
-                        : 'N/A'
-                      }
-                    </TableCell>
-                    <TableCell>
-                      <Chip
+                      ? new Date(attendee.checkInTime).toLocaleTimeString()
+                      : 'N/A'
+                    }
+                  </TableCell>
+                  <TableCell>
+                    <Chip
                         label={attendee?.status || 'Unknown'}
-                        color={
+                      color={
                           attendee?.status === 'present' 
-                            ? 'success' 
+                          ? 'success' 
                             : attendee?.status === 'late' 
-                              ? 'warning' 
-                              : 'error'
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {attendee?.location?.latitude && attendee?.location?.longitude
-                        ? `${attendee.location.latitude.toFixed(6)}, ${attendee.location.longitude.toFixed(6)}`
-                        : 'N/A'
+                            ? 'warning' 
+                            : 'error'
                       }
+                    />
+                  </TableCell>
+                  <TableCell>
+                      {attendee?.location?.latitude && attendee?.location?.longitude
+                      ? `${attendee.location.latitude.toFixed(6)}, ${attendee.location.longitude.toFixed(6)}`
+                      : 'N/A'
+                    }
                     </TableCell>
                   </TableRow>
                 ))

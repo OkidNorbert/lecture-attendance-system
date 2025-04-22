@@ -98,12 +98,16 @@ const Reports = () => {
       ]);
 
       // Process attendance trends data
-      const processedTrends = trendsResponse.data.map(day => ({
-        date: day._id,
-        present: day.statuses.find(s => s.status === 'present')?.count || 0,
-        absent: day.statuses.find(s => s.status === 'absent')?.count || 0,
-        late: day.statuses.find(s => s.status === 'late')?.count || 0
-      }));
+      const processedTrends = trendsResponse.data.map(day => {
+        // Add safety check for statuses
+        const statuses = day.statuses || [];
+        return {
+          date: day._id,
+          present: statuses.find(s => s.status === 'present')?.count || 0,
+          absent: statuses.find(s => s.status === 'absent')?.count || 0,
+          late: statuses.find(s => s.status === 'late')?.count || 0
+        };
+      });
 
       setAttendanceTrends(processedTrends);
       setCourseStats(statsResponse.data);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import axios from "../utils/axios";
 
 const GenerateQR = () => {
   const [formData, setFormData] = useState({
@@ -68,9 +68,7 @@ const GenerateQR = () => {
     }
 
     try {
-      const res = await axios.post("http://localhost:5000/api/qrcode/generate", formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.post("/api/qrcode/generate", formData);
 
       if (!res.data.qrCodeUrl || !res.data.expiryTime) {
         throw new Error("QR Code generation failed.");

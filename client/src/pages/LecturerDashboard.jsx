@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import axios from '../utils/axios';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 const LecturerDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -25,10 +25,20 @@ const LecturerDashboard = () => {
   const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+    
+    // Set active tab based on current path
+    if (location.pathname === '/lecturer') {
+      setActiveTab(0);
+    } else if (location.pathname === '/generate-qr') {
+      setActiveTab(1);
+    } else if (location.pathname === '/attendance-history') {
+      setActiveTab(2);
+    }
+  }, [location.pathname]);
 
   const fetchDashboardData = async () => {
     const token = localStorage.getItem("token");
@@ -42,9 +52,7 @@ const LecturerDashboard = () => {
       setError(null);
       
       // Fetch user data
-      const userResponse = await axios.get("http://localhost:5000/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const userResponse = await axios.get("/api/auth/me");
       
       setUser(userResponse.data);
       
@@ -55,15 +63,9 @@ const LecturerDashboard = () => {
       
       // Fetch stats, courses, and sessions in parallel
       const [statsRes, coursesRes, sessionsRes] = await Promise.all([
-        axios.get("http://localhost:5000/api/attendance/stats", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        axios.get("http://localhost:5000/api/courses/lecturer", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        axios.get("http://localhost:5000/api/attendance/sessions", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        axios.get("/api/attendance/stats"),
+        axios.get("/api/courses/lecturer"),
+        axios.get("/api/attendance/sessions")
       ]);
       
       // Format and set stats data
@@ -95,13 +97,11 @@ const LecturerDashboard = () => {
   };
 
   const handleExport = async (format) => {
-    const token = localStorage.getItem("token");
     try {
       setIsLoading(true);
       const res = await axios.get(
-        `http://localhost:5000/api/attendance/export?format=${format}`,
+        `/api/attendance/export?format=${format}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
           responseType: 'blob'
         }
       );
@@ -128,7 +128,6 @@ const LecturerDashboard = () => {
   };
 
   const applyFilters = async () => {
-    const token = localStorage.getItem("token");
     try {
       setIsLoading(true);
       
@@ -139,9 +138,7 @@ const LecturerDashboard = () => {
       if (filters.department) params.append('department', filters.department);
       if (filters.sessionDate) params.append('sessionDate', filters.sessionDate);
       
-      const response = await axios.get(`http://localhost:5000/api/attendance/sessions?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await axios.get(`/api/attendance/sessions?${params.toString()}`);
       
       setSessions(response.data || []);
     } catch (err) {
@@ -153,6 +150,17 @@ const LecturerDashboard = () => {
 
   const refreshDashboard = () => {
     fetchDashboardData();
+  };
+
+  // Modify tab click handlers to use navigate directly
+  const handleTabClick = (tabIndex) => {
+    if (tabIndex === 0) {
+      navigate('/lecturer');
+    } else if (tabIndex === 1) {
+      navigate('/generate-qr');
+    } else if (tabIndex === 2) {
+      navigate('/attendance-history');
+    }
   };
 
   if (isLoading) {
@@ -275,7 +283,7 @@ const LecturerDashboard = () => {
         <div className="bg-white rounded-t-2xl shadow-lg mb-0 overflow-hidden">
           <div className="flex overflow-x-auto">
             <button 
-              onClick={() => setActiveTab(0)} 
+              onClick={() => handleTabClick(0)} 
               className={`py-4 px-8 font-medium flex items-center transition-all duration-300 ${
                 activeTab === 0 
                   ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' 
@@ -286,7 +294,7 @@ const LecturerDashboard = () => {
               Sessions
             </button>
             <button 
-              onClick={() => setActiveTab(1)} 
+              onClick={() => handleTabClick(1)} 
               className={`py-4 px-8 font-medium flex items-center transition-all duration-300 ${
                 activeTab === 1 
                   ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' 
@@ -297,7 +305,7 @@ const LecturerDashboard = () => {
               Generate QR
             </button>
             <button 
-              onClick={() => setActiveTab(2)} 
+              onClick={() => handleTabClick(2)} 
               className={`py-4 px-8 font-medium flex items-center transition-all duration-300 ${
                 activeTab === 2 
                   ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' 
@@ -320,12 +328,12 @@ const LecturerDashboard = () => {
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Program</label>
                   <select 
-                    value={filters.program}
+                      value={filters.program}
                     onChange={(e) => handleFilterChange('program', e.target.value)}
                     className="w-full rounded-lg border-gray-300 border p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
+                    >
                     <option value="">All Programs</option>
-                    {lecturerCourses.programs?.map(program => (
+                      {lecturerCourses.programs?.map(program => (
                       <option key={program} value={program}>{program}</option>
                     ))}
                   </select>
@@ -334,12 +342,12 @@ const LecturerDashboard = () => {
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Course</label>
                   <select 
-                    value={filters.course}
+                      value={filters.course}
                     onChange={(e) => handleFilterChange('course', e.target.value)}
                     className="w-full rounded-lg border-gray-300 border p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
+                    >
                     <option value="">All Courses</option>
-                    {lecturerCourses.courses?.map(course => (
+                      {lecturerCourses.courses?.map(course => (
                       <option key={course.id} value={course.id}>{course.name}</option>
                     ))}
                   </select>
@@ -348,12 +356,12 @@ const LecturerDashboard = () => {
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-700">Department</label>
                   <select 
-                    value={filters.department}
+                      value={filters.department}
                     onChange={(e) => handleFilterChange('department', e.target.value)}
                     className="w-full rounded-lg border-gray-300 border p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
+                    >
                     <option value="">All Departments</option>
-                    {lecturerCourses.departments?.map(dept => (
+                      {lecturerCourses.departments?.map(dept => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
@@ -395,7 +403,7 @@ const LecturerDashboard = () => {
                   Export Excel
                 </button>
               </div>
-              
+
               {/* Sessions Table */}
               <div className="rounded-xl overflow-hidden border border-gray-200 shadow-lg">
                 <div className="overflow-x-auto">
@@ -453,7 +461,7 @@ const LecturerDashboard = () => {
                                   }}
                                 ></div>
                               </div>
-                            </td>
+                          </td>
                             <td className="py-3 px-4">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                 session.status === 'active' 
@@ -464,7 +472,7 @@ const LecturerDashboard = () => {
                               }`}>
                                 {session.status || 'Unknown'}
                               </span>
-                            </td>
+                          </td>
                             <td className="py-3 px-4 text-center">
                               <button 
                                 onClick={() => {
@@ -478,8 +486,8 @@ const LecturerDashboard = () => {
                                   }
                                 }}
                                 className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg hover:bg-indigo-200 transition duration-200 text-sm"
-                              >
-                                View Details
+                            >
+                              View Details
                               </button>
                             </td>
                           </tr>

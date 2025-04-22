@@ -34,69 +34,87 @@ function App() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Navigate to="/" replace />} />
 
-      {/* Dashboard routes */}
-      <Route path="/admin/*" element={<AdminDashboard />} />
-      <Route path="/admin/programs" element={<ProgramManagement />} />
-      <Route path="/lecturer" element={<LecturerDashboard />} />
-      <Route path="/student" element={<StudentDashboard />} />
+      {/* Dashboard routes with protection */}
+      <Route 
+        path="/admin/*" 
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        }
+      />
+      <Route 
+        path="/admin/programs" 
+        element={
+          <AdminRoute>
+            <ProgramManagement />
+          </AdminRoute>
+        }
+      />
+      <Route 
+        path="/lecturer" 
+        element={
+          <LecturerRoute>
+            <LecturerDashboard />
+          </LecturerRoute>
+        }
+      />
+      <Route 
+        path="/student" 
+        element={
+          <StudentRoute>
+            <StudentDashboard />
+          </StudentRoute>
+        }
+      />
       <Route path="/dashboard" element={<DashboardRedirect />} />
       
-      {/* Shared Routes */}
-      <Route path="/attendance-history" element={<AttendanceHistory />} />
-      <Route path="/generate-qr" element={<GenerateQR />} />
-      <Route path="/scan-qr" element={<ScanQR />} />
-      <Route path="/session/:id" element={<SessionDetails />} />
-      <Route path="/session-details/:id" element={<SessionDetails />} />
+      {/* Shared Routes with role-based protection */}
+      <Route 
+        path="/attendance-history" 
+        element={
+          <LecturerRoute>
+            <AttendanceHistory />
+          </LecturerRoute>
+        }
+      />
+      <Route 
+        path="/generate-qr" 
+        element={
+          <LecturerRoute>
+            <GenerateQR />
+          </LecturerRoute>
+        }
+      />
+      <Route 
+        path="/scan-qr" 
+        element={
+          <StudentRoute>
+            <ScanQR />
+          </StudentRoute>
+        }
+      />
+      <Route 
+        path="/session/:id" 
+        element={
+          <LecturerRoute>
+            <SessionDetails />
+          </LecturerRoute>
+        }
+      />
+      <Route 
+        path="/session-details/:id" 
+        element={
+          <LecturerRoute>
+            <SessionDetails />
+          </LecturerRoute>
+        }
+      />
 
       {/* Catch all route - redirect to home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
-
-// function App() {
-//   return (
-//     <Routes>
-//       <Route path="/" element={<Home />} />
-      
-//       {/* Admin Routes */}
-//       <Route 
-//         path="/admin/*" 
-//         element={
-//           <AdminRoute>
-//             <AdminDashboard />
-//           </AdminRoute>
-//         }
-//       />
-
-//       {/* Lecturer Routes */}
-//       <Route 
-//         path="/lecturer/*" 
-//         element={
-//           <LecturerRoute>
-//             <LecturerDashboard />
-//           </LecturerRoute>
-//         }
-//       />
-
-//       {/* Shared Routes */}
-//       <Route path="/attendance-history" element={<AttendanceHistory />} />
-//       <Route path="/generate-qr" element={<GenerateQR />} />
-//       <Route path="/dashboard" element={<LecturerDashboard />} />
-
-//       {/* Student Routes */}
-//       <Route 
-//         path="/student/*" 
-//         element={
-//           <StudentRoute>
-//             <StudentDashboard />
-//           </StudentRoute>
-//         }
-//       />
-//     </Routes>
-//   );
-// }
-
-
 
 export default App; 

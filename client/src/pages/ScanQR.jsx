@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import axios from "../utils/axios";
 import jsQR from "jsqr";
 
 const ScanQR = () => {
@@ -29,9 +29,7 @@ const ScanQR = () => {
 
     // ✅ Fetch user details (ensure role is student)
     axios
-      .get("http://localhost:5000/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get("/api/auth/me")
       .then((res) => {
         setUser(res.data);
         if (res.data.role !== "student") {
@@ -199,132 +197,96 @@ const ScanQR = () => {
         return;
       }
   
-      // ✅ Check if the QR Code is expired
-      const currentTime = Date.now();
-      if (currentTime > parsedData.expiryTime) {
-        setScannerError("This QR Code has expired! Please get a new one.");
+      // Check if QR code has expired
+      if (new Date() > new Date(parsedData.expiryTime)) {
+        setScannerError("This QR code has expired. Please ask your lecturer to generate a new one.");
         setIsSubmitting(false);
         setScanning(true); // Restart scanning
         return;
       }
   
-      // ✅ Ensure student name is available
-      if (!user?.name) {
-        setScannerError("Unable to fetch student name. Please try again.");
-        setIsSubmitting(false);
-        return;
-      }
+      // Include student location in attendance data
+      const attendanceData = {
+        qrData: parsedData,
+        studentLocation: {
+          latitude: studentLocation.latitude,
+          longitude: studentLocation.longitude
+        }
+      };
   
-      const res = await axios.post(
-        "http://localhost:5000/api/attendance/mark",
-        {
-          course: parsedData.course,
-          date: parsedData.date,
-          sessionId: parsedData.sessionId,
-          name: user.name,
-          studentLat: studentLocation.latitude,
-          studentLon: studentLocation.longitude,
-          // Include session location if available in QR
-          lecturerLat: parsedData.latitude,
-          lecturerLon: parsedData.longitude 
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Send attendance data to server
+      console.log("✅ Sending attendance data:", attendanceData);
+      const response = await axios.post("/api/attendance/mark", attendanceData);
   
-      setSuccessMessage(res.data.msg);
+      console.log("✅ Attendance marked response:", response.data);
+      setSuccessMessage(`✅ Attendance marked successfully for ${parsedData.course}!`);
+      
+      // Reset scanner after 5 seconds to allow for new scan
       setTimeout(() => {
-        setScanning(true);
-        setScannedData(null);
         setSuccessMessage("");
-        setIsSubmitting(false);
-      }, 3000);
+        setScannedData(null);
+        setScanning(true);
+      }, 5000);
     } catch (err) {
       console.error("❌ Attendance Marking Error:", err);
-      setScannerError(err.response?.data?.msg || "Error marking attendance");
+      const errorMessage = err.response?.data?.msg || "Failed to mark attendance. Please try again.";
+      setScannerError(errorMessage);
+      setScanning(true); // Restart scanning
+    } finally {
       setIsSubmitting(false);
-      setTimeout(() => {
-        setScanning(true); // Restart scanning on error after short delay
-      }, 2000);
     }
   };
 
-  // Update the handleFileUpload function to use jsQR
+  // Process a static QR image and handle upload
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Show processing state
-    setProcessingUpload(true);
-    setScannerError(null);
-    
-    try {
-      // Only process image files
-      if (!file.type.match('image.*')) {
-        setScannerError("Please select an image file");
-        setProcessingUpload(false);
-        return;
-      }
-
-      // Create a FileReader to read the image
-      const reader = new FileReader();
-      
-      reader.onload = async (event) => {
-        try {
-          // Create an image element to get dimensions
-          const img = new Image();
-          img.onload = async () => {
+    if (e.target.files && e.target.files[0]) {
+      try {
+        setProcessingUpload(true);
+        const file = e.target.files[0];
+        
+        // Create a FileReader to read the image
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const imgElement = document.createElement('img');
+          imgElement.src = event.target.result;
+          
+          imgElement.onload = async () => {
             try {
-              // Create a canvas to draw the image
+              // Create canvas to process the image
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d');
-              canvas.width = img.width;
-              canvas.height = img.height;
-              ctx.drawImage(img, 0, 0, img.width, img.height);
+              canvas.width = imgElement.width;
+              canvas.height = imgElement.height;
+              ctx.drawImage(imgElement, 0, 0);
               
-              // Get image data for QR code processing
+              // Get image data for QR processing
               const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
               
-              // Process with jsQR
-              const code = jsQR(imageData.data, imageData.width, imageData.height);
+              // Use jsQR to detect and decode QR code
+              const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
               
-              if (code) {
-                console.log("✅ QR Code detected from image:", code.data);
-                // Process the QR code data
-                markAttendance(code.data);
+              if (qrCode) {
+                console.log('QR Code detected from image:', qrCode.data);
+                setScannedData(qrCode.data);
+                markAttendance(qrCode.data);
               } else {
-                setScannerError("No QR code found in the image. Please try a clearer image or use the camera scanner.");
+                setScannerError('No QR code found in this image. Please try another image or use camera.');
               }
             } catch (err) {
-              console.error("QR processing error:", err);
-              setScannerError("Failed to process the QR code: " + err.message);
+              console.error('Error processing image:', err);
+              setScannerError('Failed to process the image. Please try a clearer image.');
             } finally {
               setProcessingUpload(false);
             }
           };
-          
-          img.onerror = () => {
-            setScannerError("Failed to load the image");
-            setProcessingUpload(false);
-          };
-          
-          img.src = event.target.result;
-        } catch (err) {
-          console.error("Image processing error:", err);
-          setScannerError("Failed to process the image: " + err.message);
-          setProcessingUpload(false);
-        }
-      };
-      
-      reader.onerror = () => {
-        setScannerError("Failed to read the file");
+        };
+        
+        reader.readAsDataURL(file);
+      } catch (err) {
+        console.error('File upload error:', err);
+        setScannerError('Failed to upload image. Please try again.');
         setProcessingUpload(false);
-      };
-      
-      reader.readAsDataURL(file);
-    } catch (err) {
-      console.error("File upload error:", err);
-      setScannerError("Failed to process the file: " + err.message);
-      setProcessingUpload(false);
+      }
     }
   };
 

@@ -55,6 +55,8 @@ const CourseManagement = () => {
     programId: '',
     description: '',
     credits: '',
+    semester: '',
+    academicYear: '',
     status: 'active'
   });
   const [validationErrors, setValidationErrors] = useState({});
@@ -148,6 +150,8 @@ const CourseManagement = () => {
     if (!formData.departmentId) errors.departmentId = 'Department is required';
     if (!formData.programId) errors.programId = 'Program is required';
     if (!formData.credits) errors.credits = 'Credits are required';
+    if (!formData.semester) errors.semester = 'Semester is required';
+    if (!formData.academicYear) errors.academicYear = 'Academic Year is required';
 
     // Check if there are any validation errors
     if (Object.keys(errors).length > 0) {
@@ -167,6 +171,8 @@ const CourseManagement = () => {
         programId: formData.programId,
         description: formData.description?.trim() || '',
         credits: Number(formData.credits),
+        semester: formData.semester,
+        academicYear: formData.academicYear,
         status: formData.status || 'active'
       };
 
@@ -211,9 +217,22 @@ const CourseManagement = () => {
 
     try {
       const token = localStorage.getItem('token');
+      const updatedData = {
+        name: formData.name.trim(),
+        code: formData.code.toUpperCase().trim(),
+        facultyId: formData.facultyId,
+        departmentId: formData.departmentId,
+        programId: formData.programId,
+        description: formData.description?.trim() || '',
+        credits: Number(formData.credits),
+        semester: formData.semester,
+        academicYear: formData.academicYear,
+        status: formData.status || 'active'
+      };
+      
       const response = await axios.put(
         `http://localhost:5000/api/admin/courses/${selectedCourse._id}`,
-        formData,
+        updatedData,
         {
           headers: { 'Authorization': `Bearer ${token}` }
         }
@@ -268,6 +287,8 @@ const CourseManagement = () => {
       programId: '',
       description: '',
       credits: '',
+      semester: '',
+      academicYear: '',
       status: 'active'
     });
   };
@@ -282,6 +303,8 @@ const CourseManagement = () => {
       programId: course.programId?._id || '',
       description: course.description || '',
       credits: course.credits,
+      semester: course.semester || '',
+      academicYear: course.academicYear || '',
       status: course.status
     });
     setOpenDialog(true);
@@ -291,14 +314,14 @@ const CourseManagement = () => {
     <Box>
       <Grid container spacing={3}>
         {/* Add Course Form */}
-        <Grid item xs={12} md={4}>
+        <Grid xs={12} md={4}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               Add New Course
             </Typography>
             <Box component="form" onSubmit={handleSubmit}>
               <Grid container spacing={2}>
-                <Grid item xs={12}>
+                <Grid xs={12}>
                   <TextField
                     fullWidth
                     label="Course Name"
@@ -313,7 +336,7 @@ const CourseManagement = () => {
                     helperText={validationErrors.name || ""}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid xs={12}>
                   <TextField
                     fullWidth
                     label="Course Code"
@@ -328,7 +351,7 @@ const CourseManagement = () => {
                     helperText={validationErrors.code || "Enter course code (e.g., CSC001)"}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid xs={12} md={6}>
                   <FormControl fullWidth required error={!!validationErrors.facultyId}>
                     <InputLabel>Faculty</InputLabel>
                     <Select
@@ -350,7 +373,7 @@ const CourseManagement = () => {
                     )}
                   </FormControl>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid xs={12} md={6}>
                   <FormControl fullWidth required error={!!validationErrors.departmentId}>
                     <InputLabel>Department</InputLabel>
                     <Select
@@ -372,7 +395,7 @@ const CourseManagement = () => {
                     )}
                   </FormControl>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid xs={12} md={6}>
                   <FormControl fullWidth required error={!!validationErrors.programId}>
                     <InputLabel>Program</InputLabel>
                     <Select
@@ -394,17 +417,32 @@ const CourseManagement = () => {
                     )}
                   </FormControl>
                 </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    multiline
-                    rows={3}
-                  />
+                <Grid xs={12} md={6}>
+                  <FormControl fullWidth required error={!!validationErrors.semester}>
+                    <InputLabel>Semester</InputLabel>
+                    <Select
+                      value={formData.semester}
+                      label="Semester"
+                      onChange={(e) => {
+                        setFormData({ ...formData, semester: e.target.value });
+                        setValidationErrors({ ...validationErrors, semester: '' });
+                      }}
+                    >
+                      <MenuItem value="1">1st Semester</MenuItem>
+                      <MenuItem value="2">2nd Semester</MenuItem>
+                      <MenuItem value="3">3rd Semester</MenuItem>
+                      <MenuItem value="4">4th Semester</MenuItem>
+                      <MenuItem value="5">5th Semester</MenuItem>
+                      <MenuItem value="6">6th Semester</MenuItem>
+                      <MenuItem value="7">7th Semester</MenuItem>
+                      <MenuItem value="8">8th Semester</MenuItem>
+                    </Select>
+                    {validationErrors.semester && (
+                      <FormHelperText error>{validationErrors.semester}</FormHelperText>
+                    )}
+                  </FormControl>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Credits"
@@ -420,7 +458,22 @@ const CourseManagement = () => {
                     inputProps={{ min: 1, max: 25 }}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Academic Year"
+                    placeholder="e.g., 2023-2024"
+                    value={formData.academicYear}
+                    onChange={(e) => {
+                      setFormData({ ...formData, academicYear: e.target.value });
+                      setValidationErrors({ ...validationErrors, academicYear: '' });
+                    }}
+                    required
+                    error={!!validationErrors.academicYear}
+                    helperText={validationErrors.academicYear || "Enter academic year (e.g., 2023-2024)"}
+                  />
+                </Grid>
+                <Grid xs={12}>
                   <FormControl fullWidth>
                     <InputLabel>Status</InputLabel>
                     <Select
@@ -434,7 +487,17 @@ const CourseManagement = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    multiline
+                    rows={3}
+                  />
+                </Grid>
+                <Grid xs={12}>
                   <Button
                     type="submit"
                     variant="contained"
@@ -450,7 +513,7 @@ const CourseManagement = () => {
         </Grid>
 
         {/* Courses List */}
-        <Grid item xs={12} md={8}>
+        <Grid xs={12} md={8}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               Courses List
@@ -469,10 +532,10 @@ const CourseManagement = () => {
             ) : (
               <Grid container spacing={2}>
                 {courses.map((course) => (
-                  <Grid item xs={12} key={course._id}>
+                  <Grid xs={12} key={course._id}>
                     <Paper sx={{ p: 2 }}>
                       <Grid container spacing={2}>
-                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Grid xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <Box>
                             <Typography variant="h6" component="h3">
                               {course.name}
@@ -502,7 +565,7 @@ const CourseManagement = () => {
                             </Tooltip>
                           </Box>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid xs={12} sm={6}>
                           <Typography variant="body2">
                             Faculty: {course.facultyId?.name}
                           </Typography>
@@ -513,9 +576,15 @@ const CourseManagement = () => {
                             Program: {course.programId?.name}
                           </Typography>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid xs={12} sm={6}>
                           <Typography variant="body2">
                             Credits: {course.credits}
+                          </Typography>
+                          <Typography variant="body2">
+                            Semester: {course.semester || 'Not specified'}
+                          </Typography>
+                          <Typography variant="body2">
+                            Academic Year: {course.academicYear || 'Not specified'}
                           </Typography>
                           <Typography variant="body2">
                             Status: {course.status}
@@ -558,77 +627,121 @@ const CourseManagement = () => {
               required
               fullWidth
             />
-            <FormControl fullWidth required>
-              <InputLabel>Faculty</InputLabel>
-              <Select
-                value={formData.facultyId}
-                label="Faculty"
-                onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
-              >
-                {faculties.map((faculty) => (
-                  <MenuItem key={faculty._id} value={faculty._id}>
-                    {faculty.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl fullWidth required>
-              <InputLabel>Department</InputLabel>
-              <Select
-                value={formData.departmentId}
-                label="Department"
-                onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-              >
-                {departments.map((department) => (
-                  <MenuItem key={department._id} value={department._id}>
-                    {department.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl fullWidth required>
-              <InputLabel>Program</InputLabel>
-              <Select
-                value={formData.programId}
-                label="Program"
-                onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
-              >
-                {programs.map((program) => (
-                  <MenuItem key={program._id} value={program._id}>
-                    {program.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              label="Description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              multiline
-              rows={3}
-              fullWidth
-            />
-            <TextField
-              label="Credits"
-              type="number"
-              value={formData.credits}
-              onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
-              required
-              inputProps={{ min: 1, max: 25 }}
-              helperText="Credits (1-25)"
-            />
-            <FormControl fullWidth>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={formData.status}
-                label="Status"
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              >
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="inactive">Inactive</MenuItem>
-                <MenuItem value="archived">Archived</MenuItem>
-              </Select>
-            </FormControl>
+            <Grid container spacing={2}>
+              <Grid xs={12} md={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>Faculty</InputLabel>
+                  <Select
+                    value={formData.facultyId}
+                    label="Faculty"
+                    onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
+                  >
+                    {faculties.map((faculty) => (
+                      <MenuItem key={faculty._id} value={faculty._id}>
+                        {faculty.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid xs={12} md={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={formData.departmentId}
+                    label="Department"
+                    onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                  >
+                    {departments.map((department) => (
+                      <MenuItem key={department._id} value={department._id}>
+                        {department.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid xs={12} md={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>Program</InputLabel>
+                  <Select
+                    value={formData.programId}
+                    label="Program"
+                    onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
+                  >
+                    {programs.map((program) => (
+                      <MenuItem key={program._id} value={program._id}>
+                        {program.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid xs={12} md={6}>
+                <FormControl fullWidth required>
+                  <InputLabel>Semester</InputLabel>
+                  <Select
+                    value={formData.semester}
+                    label="Semester"
+                    onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                  >
+                    <MenuItem value="1">1st Semester</MenuItem>
+                    <MenuItem value="2">2nd Semester</MenuItem>
+                    <MenuItem value="3">3rd Semester</MenuItem>
+                    <MenuItem value="4">4th Semester</MenuItem>
+                    <MenuItem value="5">5th Semester</MenuItem>
+                    <MenuItem value="6">6th Semester</MenuItem>
+                    <MenuItem value="7">7th Semester</MenuItem>
+                    <MenuItem value="8">8th Semester</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid xs={12} md={6}>
+                <TextField
+                  label="Credits"
+                  type="number"
+                  value={formData.credits}
+                  onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
+                  required
+                  fullWidth
+                  inputProps={{ min: 1, max: 25 }}
+                  helperText="Credits (1-25)"
+                />
+              </Grid>
+              <Grid xs={12} md={6}>
+                <TextField
+                  label="Academic Year"
+                  placeholder="e.g., 2023-2024"
+                  value={formData.academicYear}
+                  onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
+                  required
+                  fullWidth
+                />
+              </Grid>
+              <Grid xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={formData.status}
+                    label="Status"
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  >
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="inactive">Inactive</MenuItem>
+                    <MenuItem value="archived">Archived</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid xs={12}>
+                <TextField
+                  label="Description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  multiline
+                  rows={3}
+                  fullWidth
+                />
+              </Grid>
+            </Grid>
           </Box>
         </DialogContent>
         <DialogActions>

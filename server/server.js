@@ -37,10 +37,10 @@ app.use(requestLogger);
 
 // Route setup
 app.use("/api/auth", routes.auth);
+app.use('/api/admin', routes.admin);
+app.use('/api/trends', routes.trends);
 app.use("/api/attendance", routes.attendance);
 app.use("/api/qrcode", routes.qr);
-app.use('/api/admin', routes.admin);
-app.use('/api/attendance/trends', routes.trends);
 app.use('/api/courses', routes.courses);
 
 // Base route
