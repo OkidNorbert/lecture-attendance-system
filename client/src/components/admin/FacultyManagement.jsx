@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogActions,
   IconButton,
+  Grid,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -193,28 +194,27 @@ const FacultyManagement = () => {
   };
 
   return (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        Faculty Management
-      </Typography>
-
-      {/* Success Message */}
+    <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, overflowX: 'hidden' }}>
+      <Typography variant="h4" sx={{ mb: 3 }}>Faculty Management</Typography>
+      
+      {/* Success and Error Messages */}
       {successMessage && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage('')}>
           {successMessage}
         </Alert>
       )}
-
-      {/* Error Message */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
         </Alert>
       )}
 
-      <Paper sx={{ p: 2, mb: 2 }}>
+      {/* Add New Faculty */}
+      <Paper sx={{ p: { xs: 1.5, sm: 2, md: 3 }, mb: 3, borderRadius: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Add New Faculty</Typography>
         <form onSubmit={handleSubmit}>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={4}>
             <TextField
               label="Faculty Name"
               value={formData.name}
@@ -222,6 +222,8 @@ const FacultyManagement = () => {
               required
               size="small"
             />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
             <TextField
               label="Faculty Code"
               value={formData.code}
@@ -229,12 +231,16 @@ const FacultyManagement = () => {
               required
               size="small"
             />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
             <TextField
               label="Description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               size="small"
             />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
             <Button
               type="submit"
               variant="contained"
@@ -242,12 +248,21 @@ const FacultyManagement = () => {
             >
               {loading ? <CircularProgress size={24} /> : 'Add Faculty'}
             </Button>
-          </Box>
+            </Grid>
+          </Grid>
         </form>
       </Paper>
 
-      <TableContainer component={Paper}>
-        <Table>
+      {/* Faculties Table */}
+      <Paper sx={{ p: { xs: 1.5, sm: 2, md: 3 }, borderRadius: 2, overflow: 'auto' }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Faculties</Typography>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
+            <Table sx={{ minWidth: { xs: 650, sm: 750 } }} aria-label="faculties table">
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
@@ -257,20 +272,7 @@ const FacultyManagement = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} align="center">
-                  <CircularProgress size={24} />
-                </TableCell>
-              </TableRow>
-            ) : faculties.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} align="center">
-                  No faculties found
-                </TableCell>
-              </TableRow>
-            ) : (
-              faculties.map((faculty) => (
+                {faculties.map((faculty) => (
                 <TableRow key={faculty._id}>
                   <TableCell>{faculty.name}</TableCell>
                   <TableCell>{faculty.code}</TableCell>
@@ -292,33 +294,22 @@ const FacultyManagement = () => {
                     </IconButton>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
+                ))}
           </TableBody>
         </Table>
       </TableContainer>
+        )}
+      </Paper>
 
       {/* Edit Dialog */}
       <Dialog 
         open={openDialog} 
         onClose={handleDialogClose}
-        aria-labelledby="edit-faculty-title"
+        fullWidth
+        maxWidth="sm"
       >
-        <DialogTitle id="edit-faculty-title">
-          Edit Faculty
-          <IconButton
-            aria-label="close"
-            onClick={handleDialogClose}
-            sx={{
-              position: 'absolute',
-              right: 8,
-              top: 8,
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers>
+        <DialogTitle>Edit Faculty</DialogTitle>
+        <DialogContent sx={{ pt: { xs: 1, sm: 2 } }}>
           <Box 
             component="form" 
             noValidate 

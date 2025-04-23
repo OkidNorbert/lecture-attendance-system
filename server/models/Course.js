@@ -1,29 +1,24 @@
 const mongoose = require('mongoose');
 
 const CourseSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Course name is required'],
-    trim: true
+  course_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: function() { return new mongoose.Types.ObjectId() },
+    auto: true
   },
-  code: {
+  course_code: {
     type: String,
     required: [true, 'Course code is required'],
     unique: true,
     trim: true,
     uppercase: true
   },
-  facultyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Faculty',
-    required: [true, 'Faculty is required']
+  course_name: {
+    type: String,
+    required: [true, 'Course name is required'],
+    trim: true
   },
-  departmentId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Department',
-    required: [true, 'Department is required']
-  },
-  programId: {
+  program_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Program',
     required: [true, 'Program is required']
@@ -38,6 +33,16 @@ const CourseSchema = new mongoose.Schema({
     min: [1, 'Credits must be at least 1'],
     max: [25, 'Credits cannot exceed 25']
   },
+  semester: {
+    type: String,
+    required: [true, 'Semester is required'],
+    trim: true
+  },
+  academicYear: {
+    type: String,
+    required: [true, 'Academic year is required'],
+    trim: true
+  },
   status: {
     type: String,
     enum: ['active', 'inactive', 'archived'],
@@ -50,13 +55,21 @@ const CourseSchema = new mongoose.Schema({
 });
 
 // Indexes
-CourseSchema.index({ code: 1 }, { unique: true });
-CourseSchema.index({ facultyId: 1, departmentId: 1, programId: 1 });
+CourseSchema.index({ program_id: 1 });
+CourseSchema.index({ course_code: 1 }, { unique: true });
 
 // Pre-save middleware
 CourseSchema.pre('save', function(next) {
-  this.code = this.code.toUpperCase();
+  this.course_code = this.course_code.toUpperCase();
   next();
+});
+
+// Virtual for getting the department and faculty through program
+CourseSchema.virtual('department', {
+  ref: 'Program',
+  localField: 'program_id',
+  foreignField: '_id',
+  justOne: true
 });
 
 module.exports = mongoose.model('Course', CourseSchema);

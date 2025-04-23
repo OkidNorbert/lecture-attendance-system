@@ -1,5 +1,6 @@
+const { User } = require('../models/User');
+const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
-const User = require('../models/User');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -14,36 +15,39 @@ const sanitizedUri = process.env.MONGODB_URI.replace(/:([^@]+)@/, ':****@');
 console.log('Using connection string:', sanitizedUri);
 
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('MongoDB Atlas connected successfully'))
-    .catch(err => {
-        console.error('MongoDB Atlas connection error:', err);
-        process.exit(1);
-    });
+    .then(() => console.log('MongoDB connected'))
+    .catch(err => console.error(err));
 
 async function createAdminUser() {
     try {
         // Check if admin already exists
-        const existingAdmin = await User.findOne({ email: 'admin@example.com' });
-        if (existingAdmin) {
-            console.log('Admin user already exists');
-            mongoose.disconnect();
-            return;
+        const adminExists = await User.findOne({ email: 'admin@example.com' });
+        
+        if (adminExists) {
+            console.log('Admin already exists');
+            process.exit(0);
         }
-
-        const adminUser = new User({
-            name: 'Admin User',
+        
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash('admin123', salt);
+        
+        // Create admin user
+        const admin = new User({
+            first_name: 'Admin',
+            last_name: 'User',
             email: 'admin@example.com',
-            password: 'n0bby@adm1n',
-            role: 'admin'
+            password_hash: hashedPassword,
+            role: 'admin',
+            isApproved: true
         });
-
-        await adminUser.save();
+        
+        await admin.save();
         console.log('Admin user created successfully');
-    } catch (error) {
-        console.error('Error creating admin user:', error);
-    } finally {
-        await mongoose.disconnect();
         process.exit(0);
+    } catch (err) {
+        console.error('Error creating admin:', err);
+        process.exit(1);
     }
 }
 

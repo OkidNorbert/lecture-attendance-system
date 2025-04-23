@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const authMiddleware = require("../middleware/auth");
-const User = require("../models/User");
+const { User, Student, Lecturer } = require("../models/User");
 const Course = require("../models/Course");
 const Attendance = require("../models/Attendance");
 const Session = require("../models/Session");
@@ -18,7 +18,7 @@ const router = express.Router();
 // 🔹 1️⃣ Register a Lecturer
 router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { name, email, department, role } = req.body;
+    const { first_name, last_name, email, department, role } = req.body;
 
     let user = await User.findOne({ email });
     if (user) {
@@ -28,26 +28,32 @@ router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, r
     const tempPassword = Math.random().toString(36).slice(-8);
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    user = new User({
-      name,
+    // Generate a lecturer ID
+    const lecturerId = `LEC${Date.now().toString().slice(-6)}`;
+
+    user = new Lecturer({
+      first_name,
+      last_name,
       email,
-      password: hashedPassword,
+      password_hash: hashedPassword,
       role,
       department,
-      isApproved: true
+      isApproved: true,
+      lecturer_id: lecturerId
     });
 
     await user.save();
 
     // Send welcome email with credentials
     try {
-      await sendWelcomeEmail(email, tempPassword, name, role);
+      await sendWelcomeEmail(email, tempPassword, `${first_name} ${last_name}`, role);
       res.status(201).json({
         msg: "✅ User registered successfully. Login credentials sent to their email.",
         tempPassword,
         user: {
           id: user._id,
-          name: user.name,
+          first_name: user.first_name,
+          last_name: user.last_name,
           email: user.email,
           role: user.role,
           department: user.department
@@ -61,7 +67,8 @@ router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, r
         tempPassword,
         user: {
           id: user._id,
-          name: user.name,
+          first_name: user.first_name,
+          last_name: user.last_name,
           email: user.email,
           role: user.role,
           department: user.department
@@ -111,15 +118,25 @@ router.get("/users", authMiddleware, adminMiddleware, async (req, res) => {
     }
 
     const users = await User.find(query)
-      .select('name email role department')
+      .select('first_name last_name email role department')
       .populate('department', 'name')
-      .sort({ name: 1 });
+      .sort({ first_name: 1, last_name: 1 });
+
+    // Process user data for client display
+    const formattedUsers = users.map(user => ({
+      id: user._id,
+      name: `${user.first_name} ${user.last_name}`,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      role: user.role,
+      department: user.department ? user.department.name : null
+    }));
 
     // Add debug logging
     console.log(`Found ${users.length} users with role ${role}`);
-    console.log('Users:', users);
-
-    res.json(users);
+    
+    res.json(formattedUsers);
   } catch (err) {
     console.error('Error fetching users:', err);
     res.status(500).json({ 
@@ -243,16 +260,18 @@ router.post("/register-admin", authMiddleware, adminMiddleware, async (req, res)
       return res.status(403).json({ msg: "❌ Only super admins can register new admins" });
     }
 
-    const { name, email, password } = req.body;
+    const { first_name, last_name, email, password } = req.body;
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: "❌ Admin already exists" });
     
     const hashedPassword = await bcrypt.hash(password, 10);
     user = new User({ 
-      name, 
+      first_name, 
+      last_name, 
       email, 
-      password: hashedPassword, 
-      role: "admin" 
+      password_hash: hashedPassword, 
+      role: "admin",
+      isApproved: true
     });
     await user.save();
     
@@ -305,9 +324,11 @@ router.delete("/remove-user/:id", authMiddleware, adminMiddleware, async (req, r
 router.get("/courses", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     console.log('Fetching courses for dropdown');
-    const courses = await Course.find({ isActive: true }) // Only get active courses
-      .select('name code department')
-      .populate('department', 'name')
+    const courses = await Course.find({ status: 'active' }) // Fixed filter to use status instead of isActive
+      .select('name code departmentId facultyId programId credits semester academicYear status description')
+      .populate('departmentId', 'name code')
+      .populate('facultyId', 'name code')
+      .populate('programId', 'name code')
       .sort({ name: 1 });
     
     console.log(`Found ${courses.length} courses`);
@@ -1422,13 +1443,30 @@ router.get('/courses', authMiddleware, async (req, res) => {
       return res.status(403).json({ msg: 'Not authorized as admin' });
     }
 
+    console.log('Fetching courses for admin');
+    
     const courses = await Course.find()
-      .populate('facultyId', 'name code')
-      .populate('departmentId', 'name code')
-      .populate('programId', 'name code')
+      .populate('program_id', 'name code')
       .sort({ createdAt: -1 });
 
-    res.json(courses);
+    // Format response for client
+    const formattedCourses = courses.map(course => ({
+      id: course._id,
+      name: course.course_name,
+      code: course.course_code,
+      program: course.program_id ? {
+        id: course.program_id._id,
+        name: course.program_id.name,
+        code: course.program_id.code
+      } : null,
+      description: course.description,
+      credits: course.credits,
+      semester: course.semester,
+      academicYear: course.academicYear,
+      status: course.status
+    }));
+
+    res.json(formattedCourses);
   } catch (err) {
     console.error('Get courses error:', err);
     res.status(500).json({ msg: 'Server Error', error: err.message });
@@ -1454,12 +1492,14 @@ router.post('/courses', authMiddleware, async (req, res) => {
       programId,
       description,
       credits,
+      semester,
+      academicYear,
       status
     } = req.body;
 
     // Validate required fields
-    if (!name || !code || !facultyId || !departmentId || !programId || !credits) {
-      console.log('Missing fields:', { name, code, facultyId, departmentId, programId, credits });
+    if (!name || !code || !facultyId || !departmentId || !programId || !credits || !semester || !academicYear) {
+      console.log('Missing fields:', { name, code, facultyId, departmentId, programId, credits, semester, academicYear });
       return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
@@ -1472,6 +1512,8 @@ router.post('/courses', authMiddleware, async (req, res) => {
       programId,
       description: description?.trim() || '',
       credits: Number(credits),
+      semester,
+      academicYear,
       status: status || 'active'
     });
 
@@ -1971,6 +2013,338 @@ router.post("/generate-sample-data", authMiddleware, adminMiddleware, async (req
       msg: "Failed to generate sample data", 
       error: err.message 
     });
+  }
+});
+
+// Update a course
+router.put("/courses/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
+    console.log('Updating course:', req.params.id);
+    console.log('Update data:', req.body);
+
+    const {
+      name,
+      code,
+      facultyId,
+      departmentId,
+      programId,
+      description,
+      credits,
+      semester,
+      academicYear,
+      status
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !code || !facultyId || !departmentId || !programId || !credits || !semester || !academicYear) {
+      return res.status(400).json({ msg: 'Please provide all required fields' });
+    }
+
+    // Check if the course exists
+    const course = await Course.findById(req.params.id);
+    if (!course) {
+      return res.status(404).json({ msg: 'Course not found' });
+    }
+
+    // Check if new code already exists (excluding this course)
+    if (code !== course.code) {
+      const existingCourse = await Course.findOne({
+        code: code.toUpperCase(),
+        _id: { $ne: req.params.id }
+      });
+      
+      if (existingCourse) {
+        return res.status(400).json({ msg: 'Course code already exists' });
+      }
+    }
+
+    // Validate references
+    const [faculty, department, program] = await Promise.all([
+      Faculty.findById(facultyId),
+      Department.findById(departmentId),
+      Program.findById(programId)
+    ]);
+
+    if (!faculty) return res.status(400).json({ msg: 'Faculty not found' });
+    if (!department) return res.status(400).json({ msg: 'Department not found' });
+    if (!program) return res.status(400).json({ msg: 'Program not found' });
+
+    // Update the course
+    const updatedCourse = await Course.findByIdAndUpdate(
+      req.params.id,
+      {
+        name: name.trim(),
+        code: code.toUpperCase(),
+        facultyId,
+        departmentId,
+        programId,
+        description: description?.trim() || '',
+        credits: Number(credits),
+        semester,
+        academicYear,
+        status: status || 'active'
+      },
+      { new: true, runValidators: true }
+    )
+    .populate('facultyId', 'name code')
+    .populate('departmentId', 'name code')
+    .populate('programId', 'name code');
+
+    console.log('Course updated:', updatedCourse);
+    res.json(updatedCourse);
+  } catch (err) {
+    console.error('Update course error:', err);
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ msg: err.message });
+    }
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
+// Update user details (Name, Email, Role)
+router.put("/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    console.log('Updating user:', req.params.id);
+    console.log('Update data:', req.body);
+
+    const { first_name, last_name, email, role, password } = req.body;
+
+    // Check if user exists
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ msg: "❌ User not found" });
+    }
+
+    // Check if email is being changed and if it's already in use
+    if (email !== user.email) {
+      const existingUser = await User.findOne({ email, _id: { $ne: req.params.id } });
+      if (existingUser) {
+        return res.status(400).json({ msg: "❌ Email already in use by another user" });
+      }
+    }
+
+    // Update basic user information
+    user.first_name = first_name;
+    user.last_name = last_name;
+    user.email = email;
+    user.role = role;
+
+    // Update password if provided
+    if (password && password.trim() !== '') {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      user.password_hash = hashedPassword;
+    }
+
+    await user.save();
+
+    // Return updated user without password
+    const updatedUser = await User.findById(req.params.id).select('-password_hash');
+
+    console.log('User updated:', updatedUser);
+    res.json(updatedUser);
+  } catch (err) {
+    console.error('Update user error:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get active attendance sessions
+router.get('/active-sessions', authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+        const activeSessions = await Session.find({ expiryTime: { $gt: Date.now() } });
+        
+        res.json({ sessions: activeSessions });
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching active sessions", error: error.message });
+    }
+});
+
+// Get attendance analytics data
+router.get('/attendance-analytics', authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+        const { timeframe = 'week', course = 'all' } = req.query;
+        
+        // Set date range based on timeframe
+        const now = new Date();
+        let startDate = new Date();
+        
+        switch(timeframe) {
+            case 'week':
+                startDate.setDate(now.getDate() - 7);
+                break;
+            case 'month':
+                startDate.setMonth(now.getMonth() - 1);
+                break;
+            case 'semester':
+                startDate.setMonth(now.getMonth() - 4);
+                break;
+            default:
+                startDate.setDate(now.getDate() - 7);
+        }
+        
+        // Build query
+        let query = {
+            createdAt: { $gte: startDate, $lte: now }
+        };
+        
+        // Add course filter if not 'all'
+        if (course !== 'all') {
+            query.courseId = course;
+        }
+        
+        // Get attendance sessions in the date range
+        const sessions = await Session.find(query)
+            .populate('courseId', 'name code')
+            .lean();
+            
+        // Get attendance records for those sessions
+        const sessionIds = sessions.map(session => session._id);
+        const attendanceRecords = await Attendance.find({
+            sessionId: { $in: sessionIds }
+        }).lean();
+        
+        // Calculate daily attendance
+        const dailyAttendance = [];
+        const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const dailyCounts = {};
+        
+        // Initialize with zeros
+        daysOfWeek.forEach(day => {
+            dailyCounts[day] = 0;
+        });
+        
+        // Count attendance by day
+        sessions.forEach(session => {
+            const day = daysOfWeek[new Date(session.createdAt).getDay()];
+            const attendeesCount = attendanceRecords.filter(
+                record => record.sessionId.toString() === session._id.toString()
+            ).length;
+            
+            dailyCounts[day] += attendeesCount;
+        });
+        
+        // Format for chart
+        for (const [day, count] of Object.entries(dailyCounts)) {
+            dailyAttendance.push({ date: day, count });
+        }
+        
+        // Sort by day of week
+        dailyAttendance.sort((a, b) => {
+            return daysOfWeek.indexOf(a.date) - daysOfWeek.indexOf(b.date);
+        });
+        
+        // Calculate course distribution
+        const courseDistribution = [];
+        const courseCounts = {};
+        
+        // Count attendance by course
+        attendanceRecords.forEach(record => {
+            const session = sessions.find(s => s._id.toString() === record.sessionId.toString());
+            if (session && session.courseId) {
+                const courseName = session.courseId.name;
+                courseCounts[courseName] = (courseCounts[courseName] || 0) + 1;
+            }
+        });
+        
+        // Format for chart
+        for (const [name, value] of Object.entries(courseCounts)) {
+            courseDistribution.push({ name, value });
+        }
+        
+        // Sort by count descending
+        courseDistribution.sort((a, b) => b.value - a.value);
+        
+        // Calculate summary metrics
+        const totalSessions = sessions.length;
+        const totalAttendees = attendanceRecords.length;
+        const averageAttendance = totalSessions > 0 
+            ? (totalAttendees / totalSessions).toFixed(1) 
+            : 0;
+        
+        res.json({
+            dailyAttendance,
+            courseDistribution,
+            totalSessions,
+            totalAttendees,
+            averageAttendance
+        });
+    } catch (error) {
+        console.error('Analytics error:', error);
+        res.status(500).json({ message: "Error fetching analytics data", error: error.message });
+    }
+});
+
+// Register a Student (New route for student registration)
+router.post("/register-student", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { first_name, last_name, email, program_id } = req.body;
+
+    // Check if user already exists
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ msg: "❌ User already exists" });
+    }
+
+    // Generate temporary password
+    const tempPassword = Math.random().toString(36).slice(-8);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    // Generate a student ID
+    const studentId = `STU${Date.now().toString().slice(-6)}`;
+    
+    // Create new student user
+    user = new Student({
+      first_name,
+      last_name,
+      email,
+      password_hash: hashedPassword,
+      role: 'student',
+      program_id,
+      student_id: studentId,
+      isApproved: true
+    });
+
+    await user.save();
+
+    // Send welcome email with credentials
+    try {
+      await sendWelcomeEmail(email, tempPassword, `${first_name} ${last_name}`, 'student');
+      res.status(201).json({
+        msg: "✅ Student registered successfully. Login credentials sent to their email.",
+        tempPassword,
+        user: {
+          id: user._id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+          role: user.role,
+          program_id: user.program_id,
+          student_id: user.student_id
+        }
+      });
+    } catch (emailError) {
+      // If email fails, still return success but with the password in response
+      console.error('Email sending failed:', emailError);
+      res.status(201).json({
+        msg: "✅ Student registered, but email failed. Temporary password: " + tempPassword,
+        tempPassword,
+        user: {
+          id: user._id,
+          first_name: user.first_name,
+          last_name: user.last_name, 
+          email: user.email,
+          role: user.role,
+          program_id: user.program_id,
+          student_id: user.student_id
+        }
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
 });
 

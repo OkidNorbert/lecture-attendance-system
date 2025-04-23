@@ -1,7 +1,7 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Course = require('../models/Course');
-const User = require('../models/User');
+const { User, Lecturer } = require('../models/User');
 const router = express.Router();
 
 // @route   GET api/courses/lecturer
@@ -15,7 +15,7 @@ router.get('/lecturer', authMiddleware, async (req, res) => {
     }
 
     // Get lecturer with populated courses
-    const lecturer = await User.findById(req.user.id).populate('courses');
+    const lecturer = await Lecturer.findById(req.user.id);
     
     if (!lecturer) {
       return res.status(404).json({ msg: 'Lecturer not found' });
@@ -23,29 +23,24 @@ router.get('/lecturer', authMiddleware, async (req, res) => {
 
     // Get detailed course information
     const courses = await Course.find({ 
-      _id: { $in: lecturer.courses } 
+      _id: { $in: lecturer.course_id ? [lecturer.course_id] : [] } 
     })
-    .populate('facultyId', 'name')
-    .populate('departmentId', 'name')
-    .populate('programId', 'name');
+    .populate('program_id', 'name');
 
-    // Extract unique departments and programs for filtering
-    const departments = [...new Set(courses.map(course => course.departmentId?.name))].filter(Boolean);
-    const programs = [...new Set(courses.map(course => course.programId?.name))].filter(Boolean);
+    // Extract unique programs for filtering
+    const programs = [...new Set(courses.map(course => course.program_id?.name))].filter(Boolean);
 
     // Format the response
     const formattedCourses = courses.map(course => ({
       id: course._id,
-      name: course.name,
-      code: course.code,
-      department: course.departmentId?.name,
-      program: course.programId?.name,
+      name: course.course_name,
+      code: course.course_code,
+      program: course.program_id?.name,
       credits: course.credits
     }));
 
     res.json({
       courses: formattedCourses,
-      departments,
       programs
     });
   } catch (err) {

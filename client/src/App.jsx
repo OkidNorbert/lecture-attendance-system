@@ -11,6 +11,9 @@ import LecturerRoute from './components/auth/LecturerRoute';
 import StudentRoute from './components/auth/StudentRoute';
 import SessionDetails from './pages/SessionDetails';
 import ProgramManagement from './components/admin/ProgramManagement';
+import FacultyManagement from './components/admin/FacultyManagement';
+import SystemOverview from './components/admin/SystemOverview';
+import AttendanceAnalytics from './components/admin/AttendanceAnalytics';
 
 // Route guard for redirecting to role-specific dashboard
 const DashboardRedirect = () => {
@@ -48,6 +51,46 @@ function App() {
         element={
           <AdminRoute>
             <ProgramManagement />
+          </AdminRoute>
+        }
+      />
+      <Route 
+        path="/admin/dashboard" 
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        }
+      />
+      <Route 
+        path="/admin/system-overview" 
+        element={
+          <AdminRoute>
+            <SystemOverview />
+          </AdminRoute>
+        }
+      />
+      <Route 
+        path="/admin/faculty-management" 
+        element={
+          <AdminRoute>
+            <FacultyManagement />
+          </AdminRoute>
+        }
+      />
+      <Route 
+        path="/admin/program-management" 
+        element={
+          <AdminRoute>
+            <ProgramManagement />
+          </AdminRoute>
+        }
+      />
+      <Route 
+        path="/admin/attendance-analytics" 
+        element={
+          <AdminRoute>
+            <AttendanceAnalytics />
           </AdminRoute>
         }
       />

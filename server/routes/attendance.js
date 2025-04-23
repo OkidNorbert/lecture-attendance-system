@@ -32,50 +32,43 @@ router.post("/mark", authMiddleware, async (req, res) => {
 
     // ✅ Prevent duplicate attendance
     const existingRecord = await Attendance.findOne({ 
-      studentId: req.user.id, 
+      student_id: req.user.id, 
       sessionId: session._id 
     });
     
     if (existingRecord) return res.status(400).json({ msg: "❌ Attendance already marked!" });
 
     // Find the course ID if possible, otherwise create a placeholder
-    let courseId;
-    let lecturerId;
+    let course_id;
     
     // Try to use session's courseId if available
     if (session.courseId) {
-      courseId = session.courseId;
+      course_id = session.courseId;
     } else {
       // Try to find a course by name
       try {
         const courseRecord = await Course.findOne({ 
-          name: { $regex: new RegExp(course, 'i') } // Case-insensitive search
+          course_name: { $regex: new RegExp(course, 'i') } // Case-insensitive search
         });
         
         if (courseRecord) {
-          courseId = courseRecord._id;
+          course_id = courseRecord._id;
         } else {
           // Create a placeholder ObjectId if no course found
-          courseId = new mongoose.Types.ObjectId();
+          course_id = new mongoose.Types.ObjectId();
         }
       } catch (err) {
         console.error("Error finding course:", err);
-        courseId = new mongoose.Types.ObjectId();
+        course_id = new mongoose.Types.ObjectId();
       }
     }
-    
-    // Get lecturerId from session or use the placeholder
-    lecturerId = session.lecturerId || new mongoose.Types.ObjectId();
 
     // ✅ Save attendance record
     const attendance = new Attendance({
-      studentId: req.user.id,
-      courseId: courseId,
-      lecturerId: lecturerId,
-      date: new Date(date),
+      student_id: req.user.id,
+      course_id: course_id,
+      attendance_date: new Date(date),
       status: 'present',
-      checkInTime: new Date(),
-      location: `${studentLat},${studentLon}`,
       sessionId: session._id
     });
 
@@ -96,7 +89,7 @@ router.get("/history", authMiddleware, async (req, res) => {
   }
 
   try {
-    const records = await Attendance.find({ studentId: req.user.id }).sort({ date: -1 });
+    const records = await Attendance.find({ student_id: req.user.id }).sort({ attendance_date: -1 });
     res.json(records);
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
@@ -177,7 +170,7 @@ router.get('/stats/student', authMiddleware, async (req, res) => {
 
     // Get all attendance records for the student
     console.log(`[DEBUG] Finding attendance records for student: ${req.user.id}`);
-    const attendanceRecords = await Attendance.find({ studentId: req.user.id });
+    const attendanceRecords = await Attendance.find({ student_id: req.user.id });
     console.log(`[DEBUG] Found ${attendanceRecords.length} attendance records`);
 
     // Calculate attended sessions
@@ -186,7 +179,7 @@ router.get('/stats/student', authMiddleware, async (req, res) => {
     // Find all sessions that the student could have attended
     // This could be from courses they're enrolled in
     const enrolledCourseIds = [...new Set(attendanceRecords.map(record => 
-      record.courseId ? record.courseId.toString() : null
+      record.course_id ? record.course_id.toString() : null
     ).filter(id => id !== null))];
     
     console.log(`[DEBUG] Enrolled course IDs: ${enrolledCourseIds.join(', ')}`);
@@ -239,7 +232,7 @@ router.get('/stats/student/basic', authMiddleware, async (req, res) => {
     }
 
     // Simply count all attendance records for this student
-    const attendanceCount = await Attendance.countDocuments({ studentId: req.user.id });
+    const attendanceCount = await Attendance.countDocuments({ student_id: req.user.id });
 
     // Return simplified stats
     const responseData = {
@@ -248,16 +241,11 @@ router.get('/stats/student/basic', authMiddleware, async (req, res) => {
       attendanceRate: attendanceCount > 0 ? Math.round((attendanceCount / (attendanceCount + 2)) * 100) : 0
     };
 
-    console.log(`[DEBUG] Sending basic stats response: ${JSON.stringify(responseData)}`);
+    console.log(`[DEBUG] Sending basic stats: ${JSON.stringify(responseData)}`);
     res.json(responseData);
   } catch (err) {
-    console.error('[ERROR] Error in basic student stats:', err);
-    // Return default values if there's an error
-    res.json({
-      totalAttended: 0,
-      totalSessions: 0,
-      attendanceRate: 0
-    });
+    console.error('[ERROR] Error fetching basic student stats:', err);
+    res.status(500).json({ msg: "Server error", error: err.message });
   }
 });
 

@@ -1,14 +1,14 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const { User, Student, Lecturer } = require("../models/User");
 const auth = require("../middleware/auth");
 const router = express.Router();
 
 // ✅ User Registration API (Signup)
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, studentId, role, course, year, semester } = req.body;
+    const { first_name, last_name, email, password, role, program_id } = req.body;
 
     // Check if user already exists
     let user = await User.findOne({ email });
@@ -18,24 +18,53 @@ router.post("/register", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create new user
-    user = new User({
-      name,
+    // Create base user data
+    const userData = {
+      first_name,
+      last_name,
       email,
-      password: hashedPassword,
-      studentId,
+      password_hash: hashedPassword,
       role,
-      course,
-      year,
-      semester,
-    });
+      isApproved: true
+    };
+
+    // Create appropriate user type based on role
+    if (role === 'student') {
+      // Generate a student ID
+      const studentId = `STU${Date.now().toString().slice(-6)}`;
+      user = new Student({
+        ...userData,
+        student_id: studentId,
+        program_id
+      });
+    } else if (role === 'lecturer') {
+      // Generate a lecturer ID
+      const lecturerId = `LEC${Date.now().toString().slice(-6)}`;
+      user = new Lecturer({
+        ...userData,
+        lecturer_id: lecturerId
+      });
+    } else {
+      // Admin or other roles
+      user = new User(userData);
+    }
 
     await user.save();
 
     // Generate JWT Token
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    res.status(201).json({ msg: "User registered successfully", token });
+    res.status(201).json({ 
+      msg: "User registered successfully", 
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role
+      }
+    });
   } catch (err) {
     res.status(500).json({ msg: "Server error", error: err.message });
   }
@@ -47,7 +76,7 @@ router.post("/register", async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log(`Login attempt for: ${email} with password: ${password}`);
+    console.log(`Login attempt for: ${email}`);
 
     // Find user by email
     let user = await User.findOne({ email });
@@ -69,7 +98,7 @@ router.post('/login', async (req, res) => {
     } else {
       // Normal password validation for production
       console.log(`Comparing password hash...`);
-      isMatch = await bcrypt.compare(password, user.password);
+      isMatch = await bcrypt.compare(password, user.password_hash);
       console.log(`Password match result: ${isMatch ? 'SUCCESS' : 'FAILURE'}`);
     }
 
@@ -97,7 +126,9 @@ router.post('/login', async (req, res) => {
           role: user.role,
           user: {
             id: user._id,
-            name: user.name,
+            name: `${user.first_name} ${user.last_name}`,
+            first_name: user.first_name,
+            last_name: user.last_name,
             email: user.email,
             role: user.role
           }
@@ -126,7 +157,7 @@ router.post("/admin/login", async (req, res) => {
     console.log("✅ Admin found:", admin); // Debug admin details
 
     // Check password
-    const isMatch = await bcrypt.compare(password, admin.password);
+    const isMatch = await bcrypt.compare(password, admin.password_hash);
     if (!isMatch) {
       console.log("❌ Password mismatch for:", email);
       return res.status(400).json({ message: "Invalid credentials" });
@@ -135,7 +166,14 @@ router.post("/admin/login", async (req, res) => {
     // Generate JWT Token
     const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
 
-    res.json({ token, admin: { id: admin._id, email: admin.email } });
+    res.json({ 
+      token, 
+      admin: { 
+        id: admin._id, 
+        email: admin.email,
+        name: `${admin.first_name} ${admin.last_name}`
+      } 
+    });
   } catch (error) {
     console.error("❌ Login error:", error);
     res.status(500).json({ message: "Server error" });
@@ -147,7 +185,7 @@ router.post("/admin/login", async (req, res) => {
 // @access  Private
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id).select('-password_hash');
     res.json(user);
   } catch (err) {
     console.error(err.message);

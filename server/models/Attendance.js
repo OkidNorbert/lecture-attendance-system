@@ -1,22 +1,22 @@
 const mongoose = require("mongoose");
 
 const AttendanceSchema = new mongoose.Schema({
-  studentId: {
+  attendance_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: function() { return new mongoose.Types.ObjectId() },
+    auto: true
+  },
+  student_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'Student ID is required']
   },
-  courseId: {
+  course_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Course',
     required: [true, 'Course ID is required']
   },
-  lecturerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'Lecturer ID is required']
-  },
-  date: {
+  attendance_date: {
     type: Date,
     default: Date.now,
     required: true
@@ -43,15 +43,13 @@ const AttendanceSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-AttendanceSchema.index({ studentId: 1, courseId: 1, date: 1 });
-AttendanceSchema.index({ courseId: 1, date: 1 });
-AttendanceSchema.index({ lecturerId: 1, date: 1 });
+AttendanceSchema.index({ course_id: 1, attendance_date: 1 });
 
 // Add compound index for unique attendance per student per course per date
 AttendanceSchema.index({ 
-  studentId: 1, 
-  courseId: 1, 
-  date: 1 
+  student_id: 1, 
+  course_id: 1, 
+  attendance_date: 1 
 }, { 
   unique: true 
 });
@@ -64,10 +62,9 @@ AttendanceSchema.statics.generateSampleData = async function() {
   // Get some real courses and users from the database
   const courses = await Course.find().limit(3);
   const students = await User.find({ role: 'student' }).limit(5);
-  const lecturers = await User.find({ role: 'lecturer' }).limit(2);
 
-  if (!courses.length || !students.length || !lecturers.length) {
-    throw new Error('Please ensure there are courses, students, and lecturers in the database');
+  if (!courses.length || !students.length) {
+    throw new Error('Please ensure there are courses and students in the database');
   }
 
   const sampleData = [];
@@ -82,10 +79,9 @@ AttendanceSchema.statics.generateSampleData = async function() {
     for (const student of students) {
       for (const course of courses) {
         sampleData.push({
-          studentId: student._id,
-          courseId: course._id,
-          lecturerId: lecturers[Math.floor(Math.random() * lecturers.length)]._id,
-          date: date,
+          student_id: student._id,
+          course_id: course._id,
+          attendance_date: date,
           status: statuses[Math.floor(Math.random() * statuses.length)]
         });
       }

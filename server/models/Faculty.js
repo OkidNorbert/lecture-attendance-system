@@ -41,7 +41,6 @@ const FacultySchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-FacultySchema.index({ code: 1 }, { unique: true });
 FacultySchema.index({ name: 'text', description: 'text' });
 
 module.exports = mongoose.model('Faculty', FacultySchema); 

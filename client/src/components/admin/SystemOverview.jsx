@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Grid,
   Paper,
   Typography,
   Card,
@@ -17,6 +16,7 @@ import {
   Avatar,
   Chip,
   IconButton,
+  Grid,
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -29,6 +29,7 @@ import {
   Assignment as AssignmentIcon,
   ArrowForward as ArrowForwardIcon,
   Refresh as RefreshIcon,
+  Folder as FolderIcon,
 } from '@mui/icons-material';
 import axios from '../../utils/axios';
 import { Link } from 'react-router-dom';
@@ -286,7 +287,7 @@ const SystemOverview = ({ stats }) => {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {/* User Distribution */}
         <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: 300, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+          <Paper sx={{ p: 2, height: { xs: 250, sm: 300 }, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
             <Typography variant="h6" gutterBottom>User Distribution</Typography>
             <ResponsiveContainer width="100%" height="85%">
               <PieChart>
@@ -296,7 +297,7 @@ const SystemOverview = ({ stats }) => {
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
+                  outerRadius={({ x, y, cx, cy }) => Math.min(cx, cy) * 0.7}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -312,12 +313,12 @@ const SystemOverview = ({ stats }) => {
 
         {/* Attendance Trends */}
         <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2, height: 300, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+          <Paper sx={{ p: 2, height: { xs: 250, sm: 300 }, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
             <Typography variant="h6" gutterBottom>Weekly Attendance Trends</Typography>
             <ResponsiveContainer width="100%" height="85%">
               <BarChart
                 data={attendanceTrendData}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
@@ -334,6 +335,133 @@ const SystemOverview = ({ stats }) => {
 
       {/* Recent Activities and Quick Links */}
       <Grid container spacing={3}>
+        {/* Program-Course Management Section - NEW FEATURE */}
+        <Grid item xs={12} sx={{ mb: 3 }}>
+          <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+            <Typography variant="h6" gutterBottom>Program and Course Relationships</Typography>
+            
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>Academic Structure</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 2, bgcolor: 'rgba(106, 17, 203, 0.05)', height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Avatar sx={{ bgcolor: '#6a11cb', mr: 1, width: 32, height: 32 }}>
+                        <BusinessIcon fontSize="small" />
+                      </Avatar>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                        {systemData.faculties.total} Faculties
+                      </Typography>
+                    </Box>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="body2" color="textSecondary">
+                      The highest organizational unit containing departments
+                    </Typography>
+                    <Button 
+                      variant="outlined" 
+                      size="small" 
+                      sx={{ mt: 1 }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.querySelector('[aria-label="Faculties"]')?.click();
+                      }}
+                    >
+                      Manage Faculties
+                    </Button>
+                  </Paper>
+                </Grid>
+                
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 2, bgcolor: 'rgba(0, 196, 159, 0.05)', height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Avatar sx={{ bgcolor: '#00C49F', mr: 1, width: 32, height: 32 }}>
+                        <FolderIcon fontSize="small" />
+                      </Avatar>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                        {systemData.departments.total} Departments
+                      </Typography>
+                    </Box>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Academic units within faculties that manage programs
+                    </Typography>
+                    <Button 
+                      variant="outlined" 
+                      size="small" 
+                      sx={{ mt: 1 }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.querySelector('[aria-label="Departments"]')?.click();
+                      }}
+                    >
+                      Manage Departments
+                    </Button>
+                  </Paper>
+                </Grid>
+                
+                <Grid item xs={12} md={4}>
+                  <Paper sx={{ p: 2, bgcolor: 'rgba(255, 187, 40, 0.05)', height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Avatar sx={{ bgcolor: '#FFBB28', mr: 1, width: 32, height: 32 }}>
+                        <SchoolIcon fontSize="small" />
+                      </Avatar>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                        {systemData.programs.total} Programs
+                      </Typography>
+                    </Box>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Degree programs that contain courses and enroll students
+                    </Typography>
+                    <Button 
+                      variant="outlined" 
+                      size="small" 
+                      sx={{ mt: 1 }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.querySelector('[aria-label="Programs"]')?.click();
+                      }}
+                    >
+                      Manage Programs
+                    </Button>
+                  </Paper>
+                </Grid>
+              </Grid>
+            </Box>
+            
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                Course and Student Distribution
+              </Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Based on your ER diagram, you can enhance the system by adding direct course-student enrollments, 
+                program-specific reporting, and department-level analytics.
+              </Alert>
+              <Button 
+                variant="contained" 
+                color="primary"
+                sx={{ mr: 1 }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.querySelector('[aria-label="Courses"]')?.click();
+                }}
+              >
+                Manage Courses
+              </Button>
+              <Button 
+                variant="outlined" 
+                color="primary"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.querySelector('[aria-label="Users"]')?.click();
+                }}
+              >
+                Manage Students
+              </Button>
+            </Box>
+          </Paper>
+        </Grid>
+        
         {/* Recent Attendance Sessions */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
