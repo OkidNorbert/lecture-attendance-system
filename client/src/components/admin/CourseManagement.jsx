@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../utils/axios';
 import {
   Box,
   Button,
@@ -84,11 +84,7 @@ const CourseManagement = () => {
 
   const fetchCourses = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/courses', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      console.log('Fetched courses:', response.data); // Debug log
+      const response = await axios.get('/api/admin/courses');
       setCourses(response.data);
     } catch (err) {
       console.error('Error fetching courses:', err);
@@ -98,10 +94,7 @@ const CourseManagement = () => {
 
   const fetchFaculties = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/faculties', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/faculties');
       setFaculties(response.data);
     } catch (err) {
       console.error('Error fetching faculties:', err);
@@ -111,10 +104,7 @@ const CourseManagement = () => {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/departments', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/departments');
       setDepartments(response.data);
     } catch (err) {
       console.error('Error fetching departments:', err);
@@ -124,10 +114,7 @@ const CourseManagement = () => {
 
   const fetchPrograms = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/programs', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/programs');
       setPrograms(response.data);
     } catch (err) {
       console.error('Error fetching programs:', err);
@@ -162,7 +149,6 @@ const CourseManagement = () => {
     }
 
     try {
-      const token = localStorage.getItem('token');
       const courseData = {
         name: formData.name.trim(),
         code: formData.code.toUpperCase().trim(),
@@ -179,16 +165,7 @@ const CourseManagement = () => {
       // Debug log the data being sent
       console.log('Submitting course data:', courseData);
 
-      const response = await axios.post(
-        'http://localhost:5000/api/admin/courses',
-        courseData,
-        {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await axios.post('/api/admin/courses', courseData);
 
       // Debug log the response
       console.log('Server response:', response.data);
@@ -216,7 +193,6 @@ const CourseManagement = () => {
     setSuccessMessage('');
 
     try {
-      const token = localStorage.getItem('token');
       const updatedData = {
         name: formData.name.trim(),
         code: formData.code.toUpperCase().trim(),
@@ -231,11 +207,8 @@ const CourseManagement = () => {
       };
       
       const response = await axios.put(
-        `http://localhost:5000/api/admin/courses/${selectedCourse._id}`,
-        updatedData,
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
+        `/api/admin/courses/${selectedCourse._id}`,
+        updatedData
       );
 
       setCourses(courses.map(course => 
@@ -260,13 +233,7 @@ const CourseManagement = () => {
     setSuccessMessage('');
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.delete(
-        `http://localhost:5000/api/admin/courses/${courseId}`,
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
-      );
+      const response = await axios.delete(`/api/admin/courses/${courseId}`);
 
       setCourses(courses.filter(course => course._id !== courseId));
       setSuccessMessage(response.data.msg);
@@ -314,14 +281,14 @@ const CourseManagement = () => {
     <Box>
       <Grid container spacing={3}>
         {/* Add Course Form */}
-        <Grid xs={12} md={4}>
+        <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               Add New Course
             </Typography>
             <Box component="form" onSubmit={handleSubmit}>
               <Grid container spacing={2}>
-                <Grid xs={12}>
+                <Grid item xs={12}>
                   <TextField
                     fullWidth
                     label="Course Name"
@@ -336,7 +303,7 @@ const CourseManagement = () => {
                     helperText={validationErrors.name || ""}
                   />
                 </Grid>
-                <Grid xs={12}>
+                <Grid item xs={12}>
                   <TextField
                     fullWidth
                     label="Course Code"
@@ -351,7 +318,7 @@ const CourseManagement = () => {
                     helperText={validationErrors.code || "Enter course code (e.g., CSC001)"}
                   />
                 </Grid>
-                <Grid xs={12} md={6}>
+                <Grid item xs={12} md={6}>
                   <FormControl fullWidth required error={!!validationErrors.facultyId}>
                     <InputLabel>Faculty</InputLabel>
                     <Select
@@ -373,7 +340,7 @@ const CourseManagement = () => {
                     )}
                   </FormControl>
                 </Grid>
-                <Grid xs={12} md={6}>
+                <Grid item xs={12} md={6}>
                   <FormControl fullWidth required error={!!validationErrors.departmentId}>
                     <InputLabel>Department</InputLabel>
                     <Select
@@ -395,7 +362,7 @@ const CourseManagement = () => {
                     )}
                   </FormControl>
                 </Grid>
-                <Grid xs={12} md={6}>
+                <Grid item xs={12} md={6}>
                   <FormControl fullWidth required error={!!validationErrors.programId}>
                     <InputLabel>Program</InputLabel>
                     <Select
@@ -417,7 +384,7 @@ const CourseManagement = () => {
                     )}
                   </FormControl>
                 </Grid>
-                <Grid xs={12} md={6}>
+                <Grid item xs={12} md={6}>
                   <FormControl fullWidth required error={!!validationErrors.semester}>
                     <InputLabel>Semester</InputLabel>
                     <Select
@@ -442,7 +409,7 @@ const CourseManagement = () => {
                     )}
                   </FormControl>
                 </Grid>
-                <Grid xs={12} md={6}>
+                <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Credits"
@@ -458,7 +425,7 @@ const CourseManagement = () => {
                     inputProps={{ min: 1, max: 25 }}
                   />
                 </Grid>
-                <Grid xs={12} md={6}>
+                <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Academic Year"
@@ -473,7 +440,7 @@ const CourseManagement = () => {
                     helperText={validationErrors.academicYear || "Enter academic year (e.g., 2023-2024)"}
                   />
                 </Grid>
-                <Grid xs={12}>
+                <Grid item xs={12}>
                   <FormControl fullWidth>
                     <InputLabel>Status</InputLabel>
                     <Select
@@ -487,7 +454,7 @@ const CourseManagement = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid xs={12}>
+                <Grid item xs={12}>
                   <TextField
                     fullWidth
                     label="Description"
@@ -497,7 +464,7 @@ const CourseManagement = () => {
                     rows={3}
                   />
                 </Grid>
-                <Grid xs={12}>
+                <Grid item xs={12}>
                   <Button
                     type="submit"
                     variant="contained"
@@ -513,7 +480,7 @@ const CourseManagement = () => {
         </Grid>
 
         {/* Courses List */}
-        <Grid xs={12} md={8}>
+        <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               Courses List
@@ -532,10 +499,10 @@ const CourseManagement = () => {
             ) : (
               <Grid container spacing={2}>
                 {courses.map((course) => (
-                  <Grid xs={12} key={course._id}>
+                  <Grid item xs={12} key={course._id}>
                     <Paper sx={{ p: 2 }}>
-                      <Grid container spacing={2}>
-                        <Grid xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <Box>
                             <Typography variant="h6" component="h3">
                               {course.name}
@@ -565,7 +532,7 @@ const CourseManagement = () => {
                             </Tooltip>
                           </Box>
                         </Grid>
-                        <Grid xs={12} sm={6}>
+                        <Grid item xs={12} sm={6}>
                           <Typography variant="body2">
                             Faculty: {course.facultyId?.name}
                           </Typography>
@@ -576,7 +543,7 @@ const CourseManagement = () => {
                             Program: {course.programId?.name}
                           </Typography>
                         </Grid>
-                        <Grid xs={12} sm={6}>
+                        <Grid item xs={12} sm={6}>
                           <Typography variant="body2">
                             Credits: {course.credits}
                           </Typography>
@@ -627,8 +594,8 @@ const CourseManagement = () => {
               required
               fullWidth
             />
-            <Grid container spacing={2}>
-              <Grid xs={12} md={6}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth required>
                   <InputLabel>Faculty</InputLabel>
                   <Select
@@ -644,7 +611,7 @@ const CourseManagement = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid xs={12} md={6}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth required>
                   <InputLabel>Department</InputLabel>
                   <Select
@@ -660,7 +627,7 @@ const CourseManagement = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid xs={12} md={6}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth required>
                   <InputLabel>Program</InputLabel>
                   <Select
@@ -676,7 +643,7 @@ const CourseManagement = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid xs={12} md={6}>
+              <Grid item xs={12} md={6}>
                 <FormControl fullWidth required>
                   <InputLabel>Semester</InputLabel>
                   <Select
@@ -695,7 +662,7 @@ const CourseManagement = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid xs={12} md={6}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="Credits"
                   type="number"
@@ -707,7 +674,7 @@ const CourseManagement = () => {
                   helperText="Credits (1-25)"
                 />
               </Grid>
-              <Grid xs={12} md={6}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="Academic Year"
                   placeholder="e.g., 2023-2024"
@@ -717,7 +684,7 @@ const CourseManagement = () => {
                   fullWidth
                 />
               </Grid>
-              <Grid xs={12}>
+              <Grid item xs={12}>
                 <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -731,7 +698,7 @@ const CourseManagement = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid xs={12}>
+              <Grid item xs={12}>
                 <TextField
                   label="Description"
                   value={formData.description}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../utils/axios';
 import {
   Box,
   Button,
@@ -107,10 +107,7 @@ const ProgramManagement = () => {
 
   const fetchFaculties = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/faculties', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/faculties');
       setFaculties(response.data);
     } catch (err) {
       setError('Failed to fetch faculties');
@@ -119,10 +116,7 @@ const ProgramManagement = () => {
 
   const fetchDepartments = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/departments', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/departments');
       setDepartments(response.data);
     } catch (err) {
       setError('Failed to fetch departments');
@@ -132,10 +126,7 @@ const ProgramManagement = () => {
   const fetchPrograms = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/programs', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/admin/programs');
       console.log('Fetched programs:', response.data);
       setPrograms(response.data);
     } catch (err) {
@@ -210,24 +201,11 @@ const ProgramManagement = () => {
     setSuccess('');
 
     try {
-      const token = localStorage.getItem('token');
       if (dialogMode === 'add') {
-        await axios.post(
-          'http://localhost:5000/api/admin/programs',
-          formData,
-          {
-            headers: { 'Authorization': `Bearer ${token}` }
-          }
-        );
+        await axios.post('/api/admin/programs', formData);
         setSuccess('Program added successfully');
       } else {
-        await axios.put(
-          `http://localhost:5000/api/admin/programs/${selectedProgram._id}`,
-          formData,
-          {
-            headers: { 'Authorization': `Bearer ${token}` }
-          }
-        );
+        await axios.put(`/api/admin/programs/${selectedProgram._id}`, formData);
         setSuccess('Program updated successfully');
       }
       await fetchPrograms();
@@ -244,10 +222,7 @@ const ProgramManagement = () => {
     
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/admin/programs/${selectedProgram._id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await axios.delete(`/api/admin/programs/${selectedProgram._id}`);
       
       setSuccess('Program deleted successfully');
       await fetchPrograms();
@@ -271,7 +246,7 @@ const ProgramManagement = () => {
   const handleSaveAssignedCourses = async () => {
     setLoading(true);
     try {
-      await axios.post(`http://localhost:5000/api/admin/programs/${selectedProgram._id}/courses`, {
+      await axios.post(`/api/admin/programs/${selectedProgram._id}/courses`, {
         courseIds: selectedCourses
       });
       setSuccess('Courses assigned successfully');
@@ -296,7 +271,7 @@ const ProgramManagement = () => {
   const handleSaveAssignedStudents = async () => {
     setLoading(true);
     try {
-      await axios.post(`http://localhost:5000/api/admin/programs/${selectedProgram._id}/students`, {
+      await axios.post(`/api/admin/programs/${selectedProgram._id}/students`, {
         studentIds: selectedStudents
       });
       setSuccess('Students enrolled successfully');
@@ -553,7 +528,7 @@ const ProgramManagement = () => {
                                 ))}
                               </Box>
                             ) : (
-                              <Typography variant="body2" color="text.secondary">
+                              <Typography key="no-courses" variant="body2" color="text.secondary">
                                 No courses assigned
                               </Typography>
                             )}
@@ -658,11 +633,11 @@ const ProgramManagement = () => {
                             }}
                           >
                             {programStudents.length > 0 ? (
-                              <Typography>
+                              <Typography key="enrolled-count">
                                 {programStudents.length} students enrolled
                               </Typography>
                             ) : (
-                              <Typography variant="body2" color="text.secondary">
+                              <Typography key="no-students" variant="body2" color="text.secondary">
                                 No students enrolled
                               </Typography>
                             )}

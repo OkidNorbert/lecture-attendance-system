@@ -325,16 +325,29 @@ router.get("/courses", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     console.log('Fetching courses for dropdown');
     const courses = await Course.find({ status: 'active' }) // Fixed filter to use status instead of isActive
-      .select('name code departmentId facultyId programId credits semester academicYear status description')
-      .populate('departmentId', 'name code')
-      .populate('facultyId', 'name code')
-      .populate('programId', 'name code')
-      .sort({ name: 1 });
+      .select('course_name course_code program_id credits semester academicYear status description')
+      .populate('program_id', 'name code')
+      .sort({ course_name: 1 });
     
     console.log(`Found ${courses.length} courses`);
     console.log('Courses:', courses);
 
-    res.json(courses);
+    // Transform the data to match the expected client format
+    const formattedCourses = courses.map(course => ({
+      _id: course._id,
+      name: course.course_name,
+      code: course.course_code,
+      programId: course.program_id?._id,
+      credits: course.credits,
+      semester: course.semester,
+      academicYear: course.academicYear,
+      status: course.status,
+      description: course.description,
+      // Add populated program data if available
+      programId: course.program_id
+    }));
+
+    res.json(formattedCourses);
   } catch (err) {
     console.error('Error fetching courses:', err);
     res.status(500).json({ msg: "Server error", error: err.message });
@@ -454,8 +467,6 @@ router.post("/courses", authMiddleware, adminMiddleware, async (req, res) => {
     const {
       name,
       code,
-      facultyId,
-      departmentId,
       programId,
       description,
       credits,
@@ -465,51 +476,53 @@ router.post("/courses", authMiddleware, adminMiddleware, async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!name || !code || !facultyId || !departmentId || !programId || !credits || !semester || !academicYear) {
+    if (!name || !code || !programId || !credits || !semester || !academicYear) {
+      console.log('Missing fields:', { name, code, programId, credits, semester, academicYear });
       return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
-    // Check if course already exists
-    let existingCourse = await Course.findOne({ code: code.toUpperCase() });
-    if (existingCourse) {
-      return res.status(400).json({ msg: 'Course code already exists' });
+    // Check if program exists
+    const program = await Program.findById(programId);
+    if (!program) {
+      return res.status(400).json({ msg: 'Program not found' });
     }
 
-    // Validate references
-    const [faculty, department, program] = await Promise.all([
-      Faculty.findById(facultyId),
-      Department.findById(departmentId),
-      Program.findById(programId)
-    ]);
-
-    if (!faculty) return res.status(400).json({ msg: 'Faculty not found' });
-    if (!department) return res.status(400).json({ msg: 'Department not found' });
-    if (!program) return res.status(400).json({ msg: 'Program not found' });
-
-    // Create new course
+    // Create course
     const course = new Course({
-      name: name.trim(),
-      code: code.toUpperCase(),
-      facultyId,
-      departmentId,
-      programId,
-      description: description?.trim(),
+      course_name: name.trim(),
+      course_code: code.toUpperCase().trim(),
+      program_id: programId,
+      description: description?.trim() || '',
       credits: Number(credits),
       semester,
       academicYear,
       status: status || 'active'
     });
 
+    // Save course
     await course.save();
 
-    // Populate references before sending response
-    const populatedCourse = await Course.findById(course._id)
-      .populate('facultyId', 'name code')
-      .populate('departmentId', 'name code')
-      .populate('programId', 'name code');
+    // Populate references
+    await course.populate('program_id', 'name code');
 
-    console.log('Course created:', populatedCourse); // Debug log
-    res.json(populatedCourse);
+    // Create a formatted response that matches client expectations
+    const formattedCourse = {
+      id: course._id,
+      name: course.course_name,
+      code: course.course_code,
+      program: course.program_id ? {
+        id: course.program_id._id,
+        name: course.program_id.name,
+        code: course.program_id.code
+      } : null,
+      description: course.description,
+      credits: course.credits,
+      semester: course.semester,
+      academicYear: course.academicYear,
+      status: course.status
+    };
+
+    res.json(formattedCourse);
   } catch (err) {
     console.error('Create course error:', err);
     if (err.name === 'ValidationError') {
@@ -1487,8 +1500,6 @@ router.post('/courses', authMiddleware, async (req, res) => {
     const {
       name,
       code,
-      facultyId,
-      departmentId,
       programId,
       description,
       credits,
@@ -1498,18 +1509,22 @@ router.post('/courses', authMiddleware, async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!name || !code || !facultyId || !departmentId || !programId || !credits || !semester || !academicYear) {
-      console.log('Missing fields:', { name, code, facultyId, departmentId, programId, credits, semester, academicYear });
+    if (!name || !code || !programId || !credits || !semester || !academicYear) {
+      console.log('Missing fields:', { name, code, programId, credits, semester, academicYear });
       return res.status(400).json({ msg: 'Please provide all required fields' });
+    }
+
+    // Check if program exists
+    const program = await Program.findById(programId);
+    if (!program) {
+      return res.status(400).json({ msg: 'Program not found' });
     }
 
     // Create course
     const course = new Course({
-      name: name.trim(),
-      code: code.toUpperCase().trim(),
-      facultyId,
-      departmentId,
-      programId,
+      course_name: name.trim(),
+      course_code: code.toUpperCase().trim(),
+      program_id: programId,
       description: description?.trim() || '',
       credits: Number(credits),
       semester,
@@ -1521,13 +1536,26 @@ router.post('/courses', authMiddleware, async (req, res) => {
     await course.save();
 
     // Populate references
-    await course.populate([
-      { path: 'facultyId', select: 'name code' },
-      { path: 'departmentId', select: 'name code' },
-      { path: 'programId', select: 'name code' }
-    ]);
+    await course.populate('program_id', 'name code');
 
-    res.json(course);
+    // Create a formatted response that matches client expectations
+    const formattedCourse = {
+      id: course._id,
+      name: course.course_name,
+      code: course.course_code,
+      program: course.program_id ? {
+        id: course.program_id._id,
+        name: course.program_id.name,
+        code: course.program_id.code
+      } : null,
+      description: course.description,
+      credits: course.credits,
+      semester: course.semester,
+      academicYear: course.academicYear,
+      status: course.status
+    };
+
+    res.json(formattedCourse);
   } catch (err) {
     console.error('Create course error:', err);
     if (err.name === 'ValidationError') {

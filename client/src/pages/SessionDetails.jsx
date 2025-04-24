@@ -603,7 +603,7 @@ const SessionDetails = () => {
             <TableBody>
               {session?.attendees && session.attendees.length > 0 ? (
                 session.attendees.map((attendee, index) => (
-                <TableRow key={index}>
+                <TableRow key={attendee?.studentId?._id || attendee?.studentId?.name || `attendee-${index}`}>
                     <TableCell>{attendee?.studentId?.name || 'Unknown'}</TableCell>
                     <TableCell>{attendee?.studentId?.email || 'N/A'}</TableCell>
                   <TableCell>
