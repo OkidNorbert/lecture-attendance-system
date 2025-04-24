@@ -14,6 +14,7 @@ import ProgramManagement from './components/admin/ProgramManagement';
 import FacultyManagement from './components/admin/FacultyManagement';
 import SystemOverview from './components/admin/SystemOverview';
 import AttendanceAnalytics from './components/admin/AttendanceAnalytics';
+import EnrollmentManagement from './components/EnrollmentManagement';
 
 // Route guard for redirecting to role-specific dashboard
 const DashboardRedirect = () => {
@@ -91,6 +92,14 @@ function App() {
         element={
           <AdminRoute>
             <AttendanceAnalytics />
+          </AdminRoute>
+        }
+      />
+      <Route 
+        path="/admin/enrollment-management" 
+        element={
+          <AdminRoute>
+            <EnrollmentManagement />
           </AdminRoute>
         }
       />

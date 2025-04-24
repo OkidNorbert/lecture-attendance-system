@@ -37,6 +37,7 @@ import {
   Group as GroupIcon,
   BarChart as BarChartIcon,
   Refresh as RefreshIcon,
+  Assignment as AssignmentIcon,
 } from '@mui/icons-material';
 import axios from '../../utils/axios';
 import { Link } from 'react-router-dom';
@@ -51,6 +52,7 @@ import DepartmentManagement from './DepartmentManagement';
 import FacultyManagement from './FacultyManagement';
 import ProgramManagement from './ProgramManagement';
 import SystemOverview from './SystemOverview';
+import EnrollmentManagement from '../EnrollmentManagement';
 
 // Styled components for responsive layout
 const DashboardContainer = styled(Box)(({ theme }) => ({
@@ -166,6 +168,7 @@ const AdminDashboard = () => {
     { label: 'Departments', icon: <BusinessIcon />, component: <DepartmentManagement /> },
     { label: 'Programs', icon: <SchoolIcon />, component: <ProgramManagement /> },
     { label: 'Courses', icon: <BookIcon />, component: <CourseManagement /> },
+    { label: 'Enrollments', icon: <AssignmentIcon />, component: <EnrollmentManagement /> },
     { label: 'Attendance', icon: <AssessmentIcon />, component: <AttendanceMonitoring /> },
     { label: 'Reports', icon: <BarChartIcon />, component: <Reports /> },
   ];
@@ -465,10 +468,10 @@ const AdminDashboard = () => {
             }}
           >
             <ListItemIcon sx={{ color: activeTab === 6 ? '#6a11cb' : 'rgba(0, 0, 0, 0.6)' }}>
-              <AssessmentIcon />
+              <AssignmentIcon />
             </ListItemIcon>
             <ListItemText 
-              primary="Attendance Monitoring" 
+              primary="Enrollment Management" 
               primaryTypographyProps={{ 
                 fontWeight: activeTab === 6 ? 'bold' : 'regular',
                 color: activeTab === 6 ? '#6a11cb' : 'rgba(0, 0, 0, 0.8)',
@@ -492,13 +495,40 @@ const AdminDashboard = () => {
             }}
           >
             <ListItemIcon sx={{ color: activeTab === 7 ? '#6a11cb' : 'rgba(0, 0, 0, 0.6)' }}>
+              <AssessmentIcon />
+            </ListItemIcon>
+            <ListItemText 
+              primary="Attendance Monitoring" 
+              primaryTypographyProps={{ 
+                fontWeight: activeTab === 7 ? 'bold' : 'regular',
+                color: activeTab === 7 ? '#6a11cb' : 'rgba(0, 0, 0, 0.8)',
+                fontSize: '0.95rem'
+              }}
+            />
+          </ListItem>
+          <ListItem 
+            component="div"
+            disablePadding
+            selected={activeTab === 8} 
+            onClick={(e) => handleTabChange(e, 8)}
+            sx={{ 
+              mb: 1, 
+              borderRadius: 1,
+              borderLeft: activeTab === 8 ? '4px solid #6a11cb' : '4px solid transparent',
+              bgcolor: activeTab === 8 ? 'rgba(106, 17, 203, 0.1)' : 'transparent',
+              '&:hover': {
+                bgcolor: 'rgba(106, 17, 203, 0.05)'
+              }
+            }}
+          >
+            <ListItemIcon sx={{ color: activeTab === 8 ? '#6a11cb' : 'rgba(0, 0, 0, 0.6)' }}>
               <BarChartIcon />
             </ListItemIcon>
             <ListItemText 
               primary="Reports" 
               primaryTypographyProps={{ 
-                fontWeight: activeTab === 7 ? 'bold' : 'regular',
-                color: activeTab === 7 ? '#6a11cb' : 'rgba(0, 0, 0, 0.8)',
+                fontWeight: activeTab === 8 ? 'bold' : 'regular',
+                color: activeTab === 8 ? '#6a11cb' : 'rgba(0, 0, 0, 0.8)',
                 fontSize: '0.95rem'
               }}
             />

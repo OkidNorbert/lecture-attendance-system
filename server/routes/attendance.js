@@ -1,5 +1,5 @@
 const express = require("express");
-const authMiddleware = require("../middleware/auth");
+const { protect } = require("../middleware/auth");
 const Attendance = require("../models/Attendance");
 const Session = require("../models/Session"); // ✅ Ensure session validation
 const router = express.Router();
@@ -7,7 +7,7 @@ const Course = require('../models/Course');
 const mongoose = require('mongoose');
 
 // ✅ Mark Attendance with Expiry Validation
-router.post("/mark", authMiddleware, async (req, res) => {
+router.post("/mark", protect, async (req, res) => {
   try {
     if (req.user.role !== "student") {
       return res.status(403).json({ msg: "❌ Access denied. Only students can mark attendance." });
@@ -83,7 +83,7 @@ router.post("/mark", authMiddleware, async (req, res) => {
 
 
 // ✅ Student Attendance History
-router.get("/history", authMiddleware, async (req, res) => {
+router.get("/history", protect, async (req, res) => {
   if (req.user.role !== "student") {
     return res.status(403).json({ msg: "❌ Access denied. Only students can view attendance history." });
   }
@@ -97,7 +97,7 @@ router.get("/history", authMiddleware, async (req, res) => {
 });
 
 // ✅ Lecturer Attendance Dashboard
-router.get("/lecturer", authMiddleware, async (req, res) => {
+router.get("/lecturer", protect, async (req, res) => {
   if (req.user.role !== "lecturer") {
     return res.status(403).json({ msg: "❌ Access denied. Only lecturers can view attendance records." });
   }
@@ -126,7 +126,7 @@ function getDistance(lat1, lon1, lat2, lon2) {
 // @route   GET api/attendance/stats
 // @desc    Get lecturer's attendance statistics
 // @access  Private
-router.get('/stats', authMiddleware, async (req, res) => {
+router.get('/stats', protect, async (req, res) => {
   try {
     const stats = await Session.aggregate([
       { $match: { lecturerId: req.user.id } },
@@ -159,7 +159,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 // @route   GET api/attendance/stats/student
 // @desc    Get student's attendance statistics
 // @access  Private
-router.get('/stats/student', authMiddleware, async (req, res) => {
+router.get('/stats/student', protect, async (req, res) => {
   try {
     console.log(`[DEBUG] Student stats endpoint called by user: ${req.user.id}, role: ${req.user.role}`);
     
@@ -223,7 +223,7 @@ router.get('/stats/student', authMiddleware, async (req, res) => {
 // @route   GET api/attendance/stats/student/basic
 // @desc    Get simplified student attendance statistics
 // @access  Private
-router.get('/stats/student/basic', authMiddleware, async (req, res) => {
+router.get('/stats/student/basic', protect, async (req, res) => {
   try {
     console.log(`[DEBUG] Basic student stats endpoint called by user: ${req.user.id}`);
 
@@ -267,7 +267,7 @@ router.get('/stats/student/test', (req, res) => {
 // @route   GET api/attendance/sessions
 // @desc    Get filtered session records
 // @access  Private
-router.get('/sessions', authMiddleware, async (req, res) => {
+router.get('/sessions', protect, async (req, res) => {
   try {
     const { program, course, department, sessionDate, timeFrame } = req.query;
     let query = { lecturerId: req.user.id };
@@ -307,7 +307,7 @@ router.get('/sessions', authMiddleware, async (req, res) => {
 // @route   GET api/attendance/session/:id
 // @desc    Get detailed session information
 // @access  Private
-router.get('/session/:id', authMiddleware, async (req, res) => {
+router.get('/session/:id', protect, async (req, res) => {
   try {
     const session = await Session.findById(req.params.id)
       .populate('courseId', 'name')
@@ -331,7 +331,7 @@ router.get('/session/:id', authMiddleware, async (req, res) => {
 // @route   GET api/attendance/export
 // @desc    Export attendance records as JSON
 // @access  Private
-router.get('/export', authMiddleware, async (req, res) => {
+router.get('/export', protect, async (req, res) => {
   try {
     const sessions = await Session.find({ lecturerId: req.user.id })
       .populate('courseId', 'name')

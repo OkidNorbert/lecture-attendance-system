@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { User, Student, Lecturer } = require("../models/User");
-const auth = require("../middleware/auth");
+const { protect } = require("../middleware/auth");
 const router = express.Router();
 
 // ✅ User Registration API (Signup)
@@ -183,7 +183,7 @@ router.post("/admin/login", async (req, res) => {
 // @route   GET api/auth/me
 // @desc    Get logged in user
 // @access  Private
-router.get('/me', auth, async (req, res) => {
+router.get('/me', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password_hash');
     res.json(user);

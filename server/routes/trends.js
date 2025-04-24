@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 const Session = require('../models/Session');
 const Course = require('../models/Course');
 const mongoose = require('mongoose');
@@ -9,7 +9,7 @@ const moment = require('moment');
 // @route   GET api/attendance/trends/daily/:courseId
 // @desc    Get daily attendance patterns with time slots
 // @access  Private
-router.get('/daily/:courseId', auth, async (req, res) => {
+router.get('/daily/:courseId', protect, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     const query = {
@@ -69,7 +69,7 @@ router.get('/daily/:courseId', auth, async (req, res) => {
 // @route   GET api/attendance/trends/monthly-comparison
 // @desc    Get monthly comparison across different courses
 // @access  Private
-router.get('/monthly-comparison', auth, async (req, res) => {
+router.get('/monthly-comparison', protect, async (req, res) => {
   try {
     const monthlyData = await Session.aggregate([
       {
@@ -119,7 +119,7 @@ router.get('/monthly-comparison', auth, async (req, res) => {
 // @route   GET api/attendance/trends/student-performance/:courseId
 // @desc    Get student attendance performance trends
 // @access  Private
-router.get('/student-performance/:courseId', auth, async (req, res) => {
+router.get('/student-performance/:courseId', protect, async (req, res) => {
   try {
     const performanceData = await Session.aggregate([
       {
@@ -184,7 +184,7 @@ router.get('/student-performance/:courseId', auth, async (req, res) => {
 // @route   GET api/attendance/trends/real-time/:sessionId
 // @desc    Get real-time attendance updates for active session
 // @access  Private
-router.get('/real-time/:sessionId', auth, async (req, res) => {
+router.get('/real-time/:sessionId', protect, async (req, res) => {
   try {
     const session = await Session.findById(req.params.sessionId)
       .populate('attendees.studentId', 'name');
@@ -217,7 +217,7 @@ router.get('/real-time/:sessionId', auth, async (req, res) => {
 // @route   GET api/attendance/trends/hourly/:courseId
 // @desc    Get hourly attendance patterns
 // @access  Private
-router.get('/hourly/:courseId', auth, async (req, res) => {
+router.get('/hourly/:courseId', protect, async (req, res) => {
   try {
     const hourlyData = await Session.aggregate([
       {
@@ -259,7 +259,7 @@ router.get('/hourly/:courseId', auth, async (req, res) => {
 // @route   GET api/attendance/trends/weekly/:courseId
 // @desc    Get weekly attendance trends
 // @access  Private
-router.get('/weekly/:courseId', auth, async (req, res) => {
+router.get('/weekly/:courseId', protect, async (req, res) => {
   try {
     const weeklyData = await Session.aggregate([
       {
@@ -302,7 +302,7 @@ router.get('/weekly/:courseId', auth, async (req, res) => {
 // @route   GET api/attendance/trends/program-comparison
 // @desc    Get attendance comparison across programs
 // @access  Private
-router.get('/program-comparison', auth, async (req, res) => {
+router.get('/program-comparison', protect, async (req, res) => {
   try {
     const programData = await Session.aggregate([
       {
@@ -341,7 +341,7 @@ router.get('/program-comparison', auth, async (req, res) => {
 // @route   GET api/attendance/export/chart/:sessionId/:type
 // @desc    Export chart as image
 // @access  Private
-router.get('/export/chart/:sessionId/:type', auth, async (req, res) => {
+router.get('/export/chart/:sessionId/:type', protect, async (req, res) => {
   try {
     const { sessionId, type } = req.params;
     const session = await Session.findById(sessionId);

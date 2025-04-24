@@ -1,13 +1,29 @@
 const express = require('express');
-const authMiddleware = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 const Course = require('../models/Course');
 const { User, Lecturer } = require('../models/User');
 const router = express.Router();
 
+// @route   GET api/courses
+// @desc    Get all courses
+// @access  Private (all authenticated users)
+router.get('/', protect, async (req, res) => {
+  try {
+    const courses = await Course.find()
+      .populate('program_id', 'name')
+      .sort({ course_name: 1 });
+
+    res.json(courses);
+  } catch (err) {
+    console.error('Error fetching courses:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
 // @route   GET api/courses/lecturer
 // @desc    Get courses assigned to the authenticated lecturer
 // @access  Private (lecturer only)
-router.get('/lecturer', authMiddleware, async (req, res) => {
+router.get('/lecturer', protect, async (req, res) => {
   try {
     // Verify user is a lecturer
     if (req.user.role !== 'lecturer') {

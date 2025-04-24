@@ -1,11 +1,11 @@
 const express = require("express");
 const qr = require("qr-image");
-const authMiddleware = require("../middleware/auth");
+const { protect } = require("../middleware/auth");
 const Session = require("../models/Session"); 
 const router = express.Router();
 
 // ✅ Generate QR Code (Only for Lecturers)
-router.post("/generate", authMiddleware, async (req, res) => {
+router.post("/generate", protect, async (req, res) => {
   try {
     if (req.user.role !== "lecturer") {
       return res.status(403).json({ msg: "❌ Access denied. Only lecturers can generate QR codes." });

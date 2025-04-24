@@ -1,7 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const authMiddleware = require("../middleware/auth");
+const { protect } = require("../middleware/auth");
 const { User, Student, Lecturer } = require("../models/User");
 const Course = require("../models/Course");
 const Attendance = require("../models/Attendance");
@@ -16,7 +16,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 
 // 🔹 1️⃣ Register a Lecturer
-router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/register-lecturer", protect, adminMiddleware, async (req, res) => {
   try {
     const { first_name, last_name, email, department, role } = req.body;
 
@@ -81,7 +81,7 @@ router.post("/register-lecturer", authMiddleware, adminMiddleware, async (req, r
 });
 
 // 🔹 2️⃣ Assign Course to Lecturer
-router.post("/assign-course", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/assign-course", protect, adminMiddleware, async (req, res) => {
   try {
     const { lecturerId, courseId } = req.body;
     const lecturer = await User.findById(lecturerId);
@@ -100,7 +100,7 @@ router.post("/assign-course", authMiddleware, adminMiddleware, async (req, res) 
 });
 
 // 🔹 3️⃣ View All Users (Students & Lecturers)
-router.get("/users", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/users", protect, adminMiddleware, async (req, res) => {
   try {
     const { role } = req.query;
     console.log(`Fetching users with role: ${role}`);
@@ -148,7 +148,7 @@ router.get("/users", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // 🔹 4️⃣ Monitor Attendance Records
-router.get("/attendance", authMiddleware, async (req, res) => {
+router.get("/attendance", protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -182,7 +182,7 @@ router.get("/attendance", authMiddleware, async (req, res) => {
 });
 
 // 🔹 5️⃣ View Active Attendance Sessions
-router.get("/active-sessions", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/active-sessions", protect, adminMiddleware, async (req, res) => {
   try {
     const activeSessions = await Session.find({ expiryTime: { $gt: Date.now() } });
     res.json(activeSessions);
@@ -192,7 +192,7 @@ router.get("/active-sessions", authMiddleware, adminMiddleware, async (req, res)
 });
 
 // 🔹 6️⃣ Approve Lecturer Registration
-router.put("/approve-lecturer/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.put("/approve-lecturer/:id", protect, adminMiddleware, async (req, res) => {
   try {
     const lecturer = await User.findById(req.params.id);
     if (!lecturer || lecturer.role !== "lecturer") {
@@ -209,7 +209,7 @@ router.put("/approve-lecturer/:id", authMiddleware, adminMiddleware, async (req,
 });
 
 // 🔹 7️⃣ Reset User Password
-router.post("/reset-password/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/reset-password/:id", protect, adminMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ msg: "User not found" });
@@ -227,7 +227,7 @@ router.post("/reset-password/:id", authMiddleware, adminMiddleware, async (req, 
 });
 
 // 🔹 8️⃣ Generate Attendance Report
-router.get("/attendance-report", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/attendance-report", protect, adminMiddleware, async (req, res) => {
   try {
     const { courseId, lecturerId, studentId, startDate, endDate } = req.query;
     let query = {};
@@ -254,7 +254,7 @@ router.get("/attendance-report", authMiddleware, adminMiddleware, async (req, re
 });
 
 // Update the admin registration to include super admin check
-router.post("/register-admin", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/register-admin", protect, adminMiddleware, async (req, res) => {
   try {
     if (!req.user.isSuperAdmin) {
       return res.status(403).json({ msg: "❌ Only super admins can register new admins" });
@@ -306,7 +306,7 @@ router.post("/login", async (req, res) => {
 });
 
 // 🔹 1️⃣ Remove Lecturer or Student
-router.delete("/remove-user/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.delete("/remove-user/:id", protect, adminMiddleware, async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
     
@@ -321,7 +321,7 @@ router.delete("/remove-user/:id", authMiddleware, adminMiddleware, async (req, r
 });
 
 // 🔹 2️⃣ View All Courses
-router.get("/courses", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/courses", protect, adminMiddleware, async (req, res) => {
   try {
     console.log('Fetching courses for dropdown');
     const courses = await Course.find({ status: 'active' }) // Fixed filter to use status instead of isActive
@@ -355,7 +355,7 @@ router.get("/courses", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // 🔹 3️⃣ Remove a Course
-router.delete("/remove-course/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.delete("/remove-course/:id", protect, adminMiddleware, async (req, res) => {
   try {
     const course = await Course.findByIdAndDelete(req.params.id);
     if (!course) return res.status(404).json({ msg: "❌ Course not found" });
@@ -367,7 +367,7 @@ router.delete("/remove-course/:id", authMiddleware, adminMiddleware, async (req,
 });
 
 // 🔹 4️⃣ Generate Lecturer Performance Report
-router.get("/lecturer-performance/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/lecturer-performance/:id", protect, adminMiddleware, async (req, res) => {
   try {
     const lecturer = await User.findById(req.params.id);
     if (!lecturer || lecturer.role !== "lecturer") {
@@ -391,7 +391,7 @@ router.get("/lecturer-performance/:id", authMiddleware, adminMiddleware, async (
 });
 
 // 🔹 5️⃣ Student Attendance Trend Report
-router.get("/student-attendance-trends", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/student-attendance-trends", protect, adminMiddleware, async (req, res) => {
   try {
     const trends = await Attendance.aggregate([
       { $group: { _id: "$date", count: { $sum: 1 } } },
@@ -405,7 +405,7 @@ router.get("/student-attendance-trends", authMiddleware, adminMiddleware, async 
 });
 
 // Reset Password (Admin Only)
-router.post("/reset-password/:userId", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/reset-password/:userId", protect, adminMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) {
@@ -435,7 +435,7 @@ router.post("/reset-password/:userId", authMiddleware, adminMiddleware, async (r
 });
 
 // Get courses by program
-router.get("/programs/:programId/courses", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/programs/:programId/courses", protect, adminMiddleware, async (req, res) => {
   try {
     const courses = await Course.find({
       'programs.program': req.params.programId
@@ -456,7 +456,7 @@ router.get("/programs/:programId/courses", authMiddleware, adminMiddleware, asyn
 });
 
 // Add course to program
-router.post("/courses", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/courses", protect, adminMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -533,7 +533,7 @@ router.post("/courses", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // Get lecturers by department
-router.get("/departments/:departmentId/lecturers", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/departments/:departmentId/lecturers", protect, adminMiddleware, async (req, res) => {
   try {
     const lecturers = await User.find({
       department: req.params.departmentId,
@@ -548,7 +548,7 @@ router.get("/departments/:departmentId/lecturers", authMiddleware, adminMiddlewa
 });
 
 // Get students for course assignment
-router.get("/students", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/students", protect, adminMiddleware, async (req, res) => {
   try {
     const students = await User.find({ role: 'student' }, 'name email');
     res.json(students);
@@ -558,7 +558,7 @@ router.get("/students", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // Assign students to course
-router.post("/courses/:courseId/students", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/courses/:courseId/students", protect, adminMiddleware, async (req, res) => {
   try {
     const { studentIds } = req.body;
     const course = await Course.findById(req.params.courseId);
@@ -591,7 +591,7 @@ router.post("/courses/:courseId/students", authMiddleware, adminMiddleware, asyn
 });
 
 // Get students in a course
-router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/courses/:courseId/students", protect, adminMiddleware, async (req, res) => {
   try {
     const course = await Course.findById(req.params.courseId).populate('students', 'name email');
     if (!course) {
@@ -604,7 +604,7 @@ router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async
 });
 
 // Department Routes
-router.get("/departments", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/departments", protect, adminMiddleware, async (req, res) => {
   try {
     const departments = await Department.find()
       .populate('facultyId', 'name code')
@@ -616,7 +616,7 @@ router.get("/departments", authMiddleware, adminMiddleware, async (req, res) => 
   }
 });
 
-router.post("/departments", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/departments", protect, adminMiddleware, async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.role !== 'admin') {
@@ -665,7 +665,7 @@ router.post("/departments", authMiddleware, adminMiddleware, async (req, res) =>
 });
 
 // Program Routes
-router.get("/programs", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/programs", protect, adminMiddleware, async (req, res) => {
   try {
     const programs = await Program.find()
       .populate('facultyId', 'name code')
@@ -678,7 +678,7 @@ router.get("/programs", authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
-router.post("/programs", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/programs", protect, adminMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -754,7 +754,7 @@ router.post("/programs", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // Get programs by department
-router.get("/departments/:departmentId/programs", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/departments/:departmentId/programs", protect, adminMiddleware, async (req, res) => {
   try {
     const programs = await Program.find({ departmentId: req.params.departmentId })
       .populate('departmentId', 'name code');
@@ -766,7 +766,7 @@ router.get("/departments/:departmentId/programs", authMiddleware, adminMiddlewar
 });
 
 // Update program
-router.put("/programs/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.put("/programs/:id", protect, adminMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -813,7 +813,7 @@ router.put("/programs/:id", authMiddleware, adminMiddleware, async (req, res) =>
 });
 
 // Delete program
-router.delete("/programs/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.delete("/programs/:id", protect, adminMiddleware, async (req, res) => {
   try {
     // Check if program has associated courses or students
     const courseCount = await Course.countDocuments({
@@ -843,7 +843,7 @@ router.delete("/programs/:id", authMiddleware, adminMiddleware, async (req, res)
 });
 
 // Get students by program
-router.get("/programs/:programId/students", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/programs/:programId/students", protect, adminMiddleware, async (req, res) => {
   try {
     const students = await User.find({
       program: req.params.programId,
@@ -861,7 +861,7 @@ router.get("/programs/:programId/students", authMiddleware, adminMiddleware, asy
 });
 
 // Enroll students in a course
-router.post("/courses/:courseId/enroll", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/courses/:courseId/enroll", protect, adminMiddleware, async (req, res) => {
   try {
     const { studentIds, programId } = req.body;
     const course = await Course.findById(req.params.courseId);
@@ -947,7 +947,7 @@ router.post("/courses/:courseId/enroll", authMiddleware, adminMiddleware, async 
 });
 
 // Remove students from a course
-router.post("/courses/:courseId/unenroll", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/courses/:courseId/unenroll", protect, adminMiddleware, async (req, res) => {
   try {
     const { studentIds, programId } = req.body;
     const course = await Course.findById(req.params.courseId);
@@ -1002,7 +1002,7 @@ router.post("/courses/:courseId/unenroll", authMiddleware, adminMiddleware, asyn
 });
 
 // Get enrolled students in a course
-router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/courses/:courseId/students", protect, adminMiddleware, async (req, res) => {
   try {
     const course = await Course.findById(req.params.courseId)
       .populate({
@@ -1025,7 +1025,7 @@ router.get("/courses/:courseId/students", authMiddleware, adminMiddleware, async
 });
 
 // Get all faculties
-router.get("/faculties", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/faculties", protect, adminMiddleware, async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.role !== 'admin') {
@@ -1056,7 +1056,7 @@ router.get("/faculties", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // Get single faculty
-router.get("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/faculties/:id", protect, adminMiddleware, async (req, res) => {
   try {
     const faculty = await Faculty.findById(req.params.id)
       .populate('departments', 'name code');
@@ -1073,7 +1073,7 @@ router.get("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) =
 });
 
 // Create faculty
-router.post("/faculties", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/faculties", protect, adminMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1151,7 +1151,7 @@ router.post("/faculties", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // Update faculty
-router.put("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.put("/faculties/:id", protect, adminMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1226,7 +1226,7 @@ router.put("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) =
 });
 
 // Delete faculty
-router.delete("/faculties/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.delete("/faculties/:id", protect, adminMiddleware, async (req, res) => {
   try {
     // Check if faculty has departments
     const departmentCount = await Department.countDocuments({ 
@@ -1255,7 +1255,7 @@ router.delete("/faculties/:id", authMiddleware, adminMiddleware, async (req, res
 // @route   GET api/admin/sessions
 // @desc    Get all sessions
 // @access  Private (Admin only)
-router.get('/sessions', authMiddleware, async (req, res) => {
+router.get('/sessions', protect, async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.role !== 'admin') {
@@ -1292,7 +1292,7 @@ router.get('/sessions', authMiddleware, async (req, res) => {
 // @route   GET api/admin/users
 // @desc    Get all users
 // @access  Private (Admin only)
-router.get('/users', authMiddleware, async (req, res) => {
+router.get('/users', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1309,7 +1309,7 @@ router.get('/users', authMiddleware, async (req, res) => {
 // @route   GET api/admin/dashboard-stats
 // @desc    Get admin dashboard statistics
 // @access  Private (Admin only)
-router.get('/dashboard-stats', authMiddleware, async (req, res) => {
+router.get('/dashboard-stats', protect, async (req, res) => {
   console.log('Dashboard stats route hit');
   try {
     // For testing, return mock data first
@@ -1348,7 +1348,7 @@ router.get('/test', (req, res) => {
 // @route   PUT api/admin/departments/:id
 // @desc    Update a department
 // @access  Private (Admin only)
-router.put('/departments/:id', authMiddleware, async (req, res) => {
+router.put('/departments/:id', protect, async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.role !== 'admin') {
@@ -1423,7 +1423,7 @@ router.put('/departments/:id', authMiddleware, async (req, res) => {
 // @route   GET api/admin/departments/:id
 // @desc    Get a single department
 // @access  Private (Admin only)
-router.get('/departments/:id', authMiddleware, async (req, res) => {
+router.get('/departments/:id', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1450,7 +1450,7 @@ router.get('/departments/:id', authMiddleware, async (req, res) => {
 // @route   GET api/admin/courses
 // @desc    Get all courses
 // @access  Private (Admin only)
-router.get('/courses', authMiddleware, async (req, res) => {
+router.get('/courses', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1489,7 +1489,7 @@ router.get('/courses', authMiddleware, async (req, res) => {
 // @route   POST api/admin/courses
 // @desc    Create a new course
 // @access  Private (Admin only)
-router.post('/courses', authMiddleware, async (req, res) => {
+router.post('/courses', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1568,7 +1568,7 @@ router.post('/courses', authMiddleware, async (req, res) => {
 // @route   GET api/admin/programs
 // @desc    Get all programs
 // @access  Private (Admin only)
-router.get('/programs', authMiddleware, async (req, res) => {
+router.get('/programs', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1589,7 +1589,7 @@ router.get('/programs', authMiddleware, async (req, res) => {
 // @route   POST api/admin/programs
 // @desc    Create a new program
 // @access  Private (Admin only)
-router.post('/programs', authMiddleware, async (req, res) => {
+router.post('/programs', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1651,7 +1651,7 @@ router.post('/programs', authMiddleware, async (req, res) => {
 });
 
 // Program Routes
-router.get('/programs/statistics', authMiddleware, async (req, res) => {
+router.get('/programs/statistics', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1685,7 +1685,7 @@ router.get('/programs/statistics', authMiddleware, async (req, res) => {
 });
 
 // Assign courses to program
-router.post('/programs/:id/courses', authMiddleware, async (req, res) => {
+router.post('/programs/:id/courses', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1721,7 +1721,7 @@ router.post('/programs/:id/courses', authMiddleware, async (req, res) => {
 });
 
 // Assign lecturers to program
-router.post('/programs/:id/lecturers', authMiddleware, async (req, res) => {
+router.post('/programs/:id/lecturers', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1761,7 +1761,7 @@ router.post('/programs/:id/lecturers', authMiddleware, async (req, res) => {
 });
 
 // Enroll students in program
-router.post('/programs/:id/students', authMiddleware, async (req, res) => {
+router.post('/programs/:id/students', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1801,7 +1801,7 @@ router.post('/programs/:id/students', authMiddleware, async (req, res) => {
 });
 
 // Get program details with all relationships
-router.get('/programs/:id', authMiddleware, async (req, res) => {
+router.get('/programs/:id', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1826,7 +1826,7 @@ router.get('/programs/:id', authMiddleware, async (req, res) => {
 });
 
 // Update program statistics
-router.post('/programs/:id/update-statistics', authMiddleware, async (req, res) => {
+router.post('/programs/:id/update-statistics', protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1846,7 +1846,7 @@ router.post('/programs/:id/update-statistics', authMiddleware, async (req, res) 
 });
 
 // Update the attendance monitoring route
-router.get("/attendance-monitoring", authMiddleware, async (req, res) => {
+router.get("/attendance-monitoring", protect, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -1866,7 +1866,7 @@ router.get("/attendance-monitoring", authMiddleware, async (req, res) => {
 });
 
 // Reports routes with better error handling and authentication verification
-router.get("/reports/attendance-trends", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/reports/attendance-trends", protect, adminMiddleware, async (req, res) => {
   try {
     // Log the request for debugging
     console.log('Fetching attendance trends, user:', req.user);
@@ -1944,7 +1944,7 @@ router.get("/reports/attendance-trends", authMiddleware, adminMiddleware, async 
 });
 
 // Course stats route with similar improvements
-router.get("/reports/course-stats", authMiddleware, adminMiddleware, async (req, res) => {
+router.get("/reports/course-stats", protect, adminMiddleware, async (req, res) => {
   try {
     console.log('Fetching course stats, user:', req.user);
 
@@ -2026,7 +2026,7 @@ router.get("/reports/course-stats", authMiddleware, adminMiddleware, async (req,
 });
 
 // Generate sample attendance data
-router.post("/generate-sample-data", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/generate-sample-data", protect, adminMiddleware, async (req, res) => {
   try {
     console.log('Generating sample attendance data...');
     const count = await Attendance.generateSampleData();
@@ -2045,7 +2045,7 @@ router.post("/generate-sample-data", authMiddleware, adminMiddleware, async (req
 });
 
 // Update a course
-router.put("/courses/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.put("/courses/:id", protect, adminMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ msg: 'Not authorized as admin' });
@@ -2134,7 +2134,7 @@ router.put("/courses/:id", authMiddleware, adminMiddleware, async (req, res) => 
 });
 
 // Update user details (Name, Email, Role)
-router.put("/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
+router.put("/users/:id", protect, adminMiddleware, async (req, res) => {
   try {
     console.log('Updating user:', req.params.id);
     console.log('Update data:', req.body);
@@ -2181,7 +2181,7 @@ router.put("/users/:id", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 // Get active attendance sessions
-router.get('/active-sessions', authMiddleware, adminMiddleware, async (req, res) => {
+router.get('/active-sessions', protect, adminMiddleware, async (req, res) => {
     try {
         const activeSessions = await Session.find({ expiryTime: { $gt: Date.now() } });
         
@@ -2192,7 +2192,7 @@ router.get('/active-sessions', authMiddleware, adminMiddleware, async (req, res)
 });
 
 // Get attendance analytics data
-router.get('/attendance-analytics', authMiddleware, adminMiddleware, async (req, res) => {
+router.get('/attendance-analytics', protect, adminMiddleware, async (req, res) => {
     try {
         const { timeframe = 'week', course = 'all' } = req.query;
         
@@ -2307,7 +2307,7 @@ router.get('/attendance-analytics', authMiddleware, adminMiddleware, async (req,
 });
 
 // Register a Student (New route for student registration)
-router.post("/register-student", authMiddleware, adminMiddleware, async (req, res) => {
+router.post("/register-student", protect, adminMiddleware, async (req, res) => {
   try {
     const { first_name, last_name, email, program_id } = req.body;
 

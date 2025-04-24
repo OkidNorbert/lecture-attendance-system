@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-module.exports = function(req, res, next) {
+// Protect middleware - verifies JWT token
+const protect = function(req, res, next) {
   try {
     // Get token from header
     const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -28,3 +29,20 @@ module.exports = function(req, res, next) {
     res.status(401).json({ msg: 'Token is not valid' });
   }
 };
+
+// Authorize middleware - checks if user has required role
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ msg: 'Not authorized' });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ msg: 'Access denied' });
+    }
+
+    next();
+  };
+};
+
+module.exports = { protect, authorize };
