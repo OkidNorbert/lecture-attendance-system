@@ -47,7 +47,15 @@ const CourseSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'inactive', 'archived'],
     default: 'active'
-  }
+  },
+  lecturers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User' 
+  }],
+  students: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

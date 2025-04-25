@@ -12,6 +12,7 @@ const Program = require("../models/Program");
 const Faculty = require('../models/Faculty');
 const adminMiddleware = require('../middleware/admin');
 const mongoose = require('mongoose');
+const Enrollment = require("../models/Enrollment");
 
 const router = express.Router();
 
@@ -2338,11 +2339,49 @@ router.post("/register-student", protect, adminMiddleware, async (req, res) => {
 
     await user.save();
 
+    // Get all courses for the program
+    const programCourses = await Course.find({ program_id: program_id });
+    const enrollments = [];
+    const currentSemester = 'Current'; // Should be dynamically determined
+    const currentAcademicYear = new Date().getFullYear() + '-' + (new Date().getFullYear() + 1);
+
+    // Auto-enroll student in all program courses
+    for (const course of programCourses) {
+      // Find lecturers for this course
+      const lecturers = course.lecturers && course.lecturers.length > 0 
+        ? course.lecturers 
+        : await Lecturer.find({ taught_courses: course._id });
+
+      if (lecturers && lecturers.length > 0) {
+        // Create enrollment with the first lecturer (this could be expanded to handle multiple lecturers)
+        const lecturerId = Array.isArray(lecturers) ? lecturers[0]._id : lecturers._id;
+        
+        const enrollment = new Enrollment({
+          studentId: user._id,
+          courseId: course._id,
+          lecturerId: lecturerId,
+          programId: program_id,
+          semester: currentSemester,
+          academicYear: currentAcademicYear,
+          status: 'enrolled'
+        });
+
+        await enrollment.save();
+        enrollments.push(enrollment);
+
+        // Add student to course's students array
+        await Course.findByIdAndUpdate(
+          course._id,
+          { $addToSet: { students: user._id } }
+        );
+      }
+    }
+
     // Send welcome email with credentials
     try {
       await sendWelcomeEmail(email, tempPassword, `${first_name} ${last_name}`, 'student');
       res.status(201).json({
-        msg: "✅ Student registered successfully. Login credentials sent to their email.",
+        msg: "✅ Student registered successfully and enrolled in program courses. Login credentials sent to their email.",
         tempPassword,
         user: {
           id: user._id,
@@ -2352,13 +2391,14 @@ router.post("/register-student", protect, adminMiddleware, async (req, res) => {
           role: user.role,
           program_id: user.program_id,
           student_id: user.student_id
-        }
+        },
+        enrollments: enrollments.length
       });
     } catch (emailError) {
       // If email fails, still return success but with the password in response
       console.error('Email sending failed:', emailError);
       res.status(201).json({
-        msg: "✅ Student registered, but email failed. Temporary password: " + tempPassword,
+        msg: "✅ Student registered and enrolled in program courses, but email failed. Temporary password: " + tempPassword,
         tempPassword,
         user: {
           id: user._id,
@@ -2368,7 +2408,8 @@ router.post("/register-student", protect, adminMiddleware, async (req, res) => {
           role: user.role,
           program_id: user.program_id,
           student_id: user.student_id
-        }
+        },
+        enrollments: enrollments.length
       });
     }
   } catch (err) {

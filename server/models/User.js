@@ -105,10 +105,10 @@ const Lecturer = User.discriminator('lecturer', new mongoose.Schema({
     required: true,
     unique: true
   },
-  course_id: {
+  taught_courses: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Course'
-  }
+  }]
 }));
 
 module.exports = { User, Student, Lecturer };
