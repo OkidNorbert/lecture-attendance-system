@@ -258,14 +258,14 @@ const SystemOverview = ({ stats }) => {
                   fontSize: '1.5rem'
                 }
               }}>
-                {systemData.users.total}
-              </Typography>
-              <Typography variant="subtitle1" color="textSecondary">
-                Total Users
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-                {systemData.users.students} Students • {systemData.users.lecturers} Lecturers • {systemData.users.admins} Admins
-              </Typography>
+              {systemData.users.total}
+            </Typography>
+            <Typography variant="subtitle1" color="textSecondary">
+              Total Users
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+              {systemData.users.students} Students • {systemData.users.lecturers} Lecturers • {systemData.users.admins} Admins
+            </Typography>
             </Box>
           </Paper>
         </Grid>
@@ -322,14 +322,14 @@ const SystemOverview = ({ stats }) => {
                   fontSize: '1.5rem'
                 }
               }}>
-                {systemData.courses.total}
-              </Typography>
-              <Typography variant="subtitle1" color="textSecondary">
-                Courses
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-                {systemData.courses.active} Active • {systemData.courses.inactive} Inactive
-              </Typography>
+              {systemData.courses.total}
+            </Typography>
+            <Typography variant="subtitle1" color="textSecondary">
+              Courses
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+              {systemData.courses.active} Active • {systemData.courses.inactive} Inactive
+            </Typography>
             </Box>
           </Paper>
         </Grid>
@@ -386,14 +386,14 @@ const SystemOverview = ({ stats }) => {
                   fontSize: '1.5rem'
                 }
               }}>
-                {systemData.attendance.total}
-              </Typography>
-              <Typography variant="subtitle1" color="textSecondary">
-                Attendance Records
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-                {systemData.attendance.today} Today • {systemData.attendance.present} Present • {systemData.attendance.absent} Absent
-              </Typography>
+              {systemData.attendance.total}
+            </Typography>
+            <Typography variant="subtitle1" color="textSecondary">
+              Attendance Records
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+              {systemData.attendance.today} Today • {systemData.attendance.present} Present • {systemData.attendance.absent} Absent
+            </Typography>
             </Box>
           </Paper>
         </Grid>
@@ -450,14 +450,14 @@ const SystemOverview = ({ stats }) => {
                   fontSize: '1.5rem'
                 }
               }}>
-                {systemData.faculties.total}
-              </Typography>
-              <Typography variant="subtitle1" color="textSecondary">
-                Faculties
-              </Typography>
-              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-                {systemData.departments.total} Departments • {systemData.programs.total} Programs
-              </Typography>
+              {systemData.faculties.total}
+            </Typography>
+            <Typography variant="subtitle1" color="textSecondary">
+              Faculties
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+              {systemData.departments.total} Departments • {systemData.programs.total} Programs
+            </Typography>
             </Box>
           </Paper>
         </Grid>

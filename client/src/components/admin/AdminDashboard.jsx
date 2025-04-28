@@ -58,8 +58,13 @@ import EnrollmentManagement from '../EnrollmentManagement';
 const DashboardContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   height: '100vh',
+  width: '100vw',
+  maxWidth: '100vw',
   overflow: 'hidden',
   backgroundColor: '#f5f7fb',
+  boxSizing: 'border-box',
+  margin: 0,
+  padding: 0,
   [theme.breakpoints.down('sm')]: {
     flexDirection: 'column', // Stack elements vertically on very small screens
   },
@@ -67,6 +72,11 @@ const DashboardContainer = styled(Box)(({ theme }) => ({
     flexDirection: 'row', // Force row layout in landscape orientation on small height
     height: 'auto',
     minHeight: '100vh',
+  },
+  // TV and large screens
+  '@media (min-width: 1600px)': {
+    maxWidth: '100vw',
+    margin: '0 auto',
   }
 }));
 
@@ -115,6 +125,13 @@ const Sidebar = styled(Box)(({ theme }) => ({
       width: 280,
       maxHeight: 'none',
     }
+  },
+  // TV and large screens
+  '@media (min-width: 1600px)': {
+    width: 320,
+    '&.open': {
+      width: 320,
+    }
   }
 }));
 
@@ -124,22 +141,72 @@ const ContentArea = styled(Box)(({ theme }) => ({
   padding: theme.spacing(3),
   backgroundColor: '#f5f7fb',
   height: '100vh',
+  width: '100%',
+  maxWidth: '100%',
+  boxSizing: 'border-box',
+  display: 'flex',
+  flexDirection: 'column',
   [theme.breakpoints.down('md')]: {
     padding: theme.spacing(2),
+    width: '100%',
+    maxWidth: '100vw',
   },
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(1),
     height: 'auto',
     minHeight: '50vh',
+    width: '100%',
+    maxWidth: '100vw',
   },
   '@media (orientation: landscape) and (max-height: 600px)': {
     height: 'auto',
     minHeight: '100vh',
     padding: theme.spacing(1, 2),
+    width: '100%',
+    maxWidth: '100vw',
+  },
+  // TV and large screens
+  '@media (min-width: 1600px)': {
+    padding: theme.spacing(4),
+    width: '100%',
+    maxWidth: '100vw',
   }
 }));
 
 const AdminDashboard = () => {
+  // Add a style reset effect to prevent blank spaces
+  useEffect(() => {
+    // Add background color to html and body
+    document.documentElement.style.backgroundColor = '#f5f7fb';
+    document.body.style.backgroundColor = '#f5f7fb';
+    document.documentElement.style.margin = '0';
+    document.body.style.margin = '0';
+    document.documentElement.style.padding = '0';
+    document.body.style.padding = '0';
+    document.documentElement.style.height = '100%';
+    document.body.style.height = '100%';
+    document.documentElement.style.width = '100%';
+    document.body.style.width = '100%';
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    
+    // Cleanup function
+    return () => {
+      document.documentElement.style.backgroundColor = '';
+      document.body.style.backgroundColor = '';
+      document.documentElement.style.margin = '';
+      document.body.style.margin = '';
+      document.documentElement.style.padding = '';
+      document.body.style.padding = '';
+      document.documentElement.style.height = '';
+      document.body.style.height = '';
+      document.documentElement.style.width = '';
+      document.body.style.width = '';
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    };
+  }, []);
+
   const [activeTab, setActiveTab] = useState(0);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -321,7 +388,10 @@ const AdminDashboard = () => {
           alignItems: 'center',
           background: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)',
           color: 'white',
-          mb: 2
+          mb: 2,
+          '@media (min-width: 1600px)': {
+            p: 3,
+          }
         }}>
           <Avatar 
             sx={{ 
@@ -329,13 +399,28 @@ const AdminDashboard = () => {
               height: 70, 
               mb: 2, 
               bgcolor: 'rgba(255, 255, 255, 0.2)',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+              boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+              '@media (min-width: 1600px)': {
+                width: 100,
+                height: 100,
+                mb: 3,
+              }
             }}
           >
             <DashboardIcon fontSize="large" />
           </Avatar>
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Admin Portal</Typography>
-          <Typography variant="body2" sx={{ opacity: 0.8 }}>Attendance System</Typography>
+          <Typography variant="h6" sx={{ 
+            fontWeight: 'bold',
+            '@media (min-width: 1600px)': {
+              fontSize: '1.5rem',
+            }
+          }}>Admin Portal</Typography>
+          <Typography variant="body2" sx={{ 
+            opacity: 0.8,
+            '@media (min-width: 1600px)': {
+              fontSize: '1rem',
+            }
+          }}>Attendance System</Typography>
         </Box>
         <Divider />
         <List sx={{ px: 1 }}>
@@ -621,7 +706,17 @@ const AdminDashboard = () => {
             bgcolor: 'white',
             boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
             minHeight: { xs: '70vh', sm: '75vh', md: '85vh' },
-            overflow: 'auto'
+            height: '100%',
+            width: '100%',
+            boxSizing: 'border-box',
+            overflow: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            '@media (min-width: 1600px)': {
+              p: 4,
+              borderRadius: 3,
+            }
           }}
         >
           {tabItems[activeTab].component}

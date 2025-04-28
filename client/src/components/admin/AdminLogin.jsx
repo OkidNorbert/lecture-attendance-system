@@ -53,10 +53,30 @@ const AdminLogin = () => {
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography variant="h4" component="h1" align="center" gutterBottom>
+    <Container maxWidth="sm" sx={{
+      '@media (orientation: landscape) and (max-height: 600px)': {
+        py: 2
+      }
+    }}>
+      <Box sx={{ 
+        mt: { xs: 4, sm: 8 },
+        '@media (orientation: landscape) and (max-height: 600px)': {
+          mt: 2
+        }
+      }}>
+        <Paper elevation={3} sx={{ 
+          p: { xs: 3, sm: 4 },
+          '@media (orientation: landscape) and (max-height: 600px)': {
+            display: 'flex',
+            flexDirection: 'column',
+            p: 3
+          }
+        }}>
+          <Typography variant="h4" component="h1" align="center" gutterBottom sx={{
+            '@media (orientation: landscape) and (max-height: 600px)': {
+              fontSize: '1.5rem'
+            }
+          }}>
             Admin Login
           </Typography>
           
@@ -76,6 +96,11 @@ const AdminLogin = () => {
               onChange={handleChange}
               margin="normal"
               required
+              sx={{
+                '@media (orientation: landscape) and (max-height: 600px)': {
+                  my: 1
+                }
+              }}
             />
             
             <TextField
@@ -87,6 +112,11 @@ const AdminLogin = () => {
               onChange={handleChange}
               margin="normal"
               required
+              sx={{
+                '@media (orientation: landscape) and (max-height: 600px)': {
+                  my: 1
+                }
+              }}
             />
 
             <Button
@@ -94,7 +124,12 @@ const AdminLogin = () => {
               fullWidth
               variant="contained"
               size="large"
-              sx={{ mt: 3 }}
+              sx={{ 
+                mt: 3,
+                '@media (orientation: landscape) and (max-height: 600px)': {
+                  mt: 2
+                }
+              }}
             >
               Login
             </Button>

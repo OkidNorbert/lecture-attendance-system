@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Drawer,
@@ -12,7 +12,9 @@ import {
   ListItemIcon,
   ListItemText,
   Container,
-  CssBaseline
+  CssBaseline,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -39,6 +41,21 @@ const Admin = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedComponent, setSelectedComponent] = useState('departments');
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
+  const isTV = useMediaQuery('(min-width: 1600px)');
+  const isLandscape = useMediaQuery('(orientation: landscape) and (max-height: 600px)');
+
+  // Adjust drawer width based on screen size
+  const responsiveDrawerWidth = isTV ? 300 : isTablet ? 200 : drawerWidth;
+
+  // Close drawer automatically when changing orientation on mobile
+  useEffect(() => {
+    if (isMobile) {
+      setMobileOpen(false);
+    }
+  }, [isLandscape, isMobile]);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -86,21 +103,48 @@ const Admin = () => {
           <ListItem
             button
             key={item.text}
-            onClick={() => setSelectedComponent(item.component)}
+            onClick={() => {
+              setSelectedComponent(item.component);
+              if (isMobile) setMobileOpen(false);
+            }}
             selected={selectedComponent === item.component}
+            sx={{
+              py: isTV ? 1.5 : 1,
+              px: isTV ? 3 : 2
+            }}
           >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.text} />
+            <ListItemIcon sx={{
+              minWidth: isTV ? 42 : 36
+            }}>
+              {item.icon}
+            </ListItemIcon>
+            <ListItemText 
+              primary={item.text} 
+              primaryTypographyProps={{
+                fontSize: isTV ? '1.1rem' : 'inherit',
+                fontWeight: selectedComponent === item.component ? 'bold' : 'normal'
+              }}
+            />
           </ListItem>
         ))}
       </List>
       <Divider />
       <List>
-        <ListItem button onClick={handleLogout}>
-          <ListItemIcon>
+        <ListItem button onClick={handleLogout} sx={{
+          py: isTV ? 1.5 : 1,
+          px: isTV ? 3 : 2
+        }}>
+          <ListItemIcon sx={{
+            minWidth: isTV ? 42 : 36
+          }}>
             <LogoutIcon />
           </ListItemIcon>
-          <ListItemText primary="Logout" />
+          <ListItemText 
+            primary="Logout" 
+            primaryTypographyProps={{
+              fontSize: isTV ? '1.1rem' : 'inherit',
+            }}
+          />
         </ListItem>
       </List>
     </div>
@@ -113,17 +157,27 @@ const Admin = () => {
         flexDirection: 'row',
         minHeight: '100vh',
         height: 'auto'
+      },
+      '@media (min-width: 1600px)': {
+        height: '100vh',
       } 
     }}>
       <CssBaseline />
       <AppBar
         position="fixed"
         sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
+          width: { sm: `calc(100% - ${responsiveDrawerWidth}px)` },
+          ml: { sm: `${responsiveDrawerWidth}px` },
+          '@media (min-width: 1600px)': {
+            height: 70,
+          }
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{
+          '@media (min-width: 1600px)': {
+            minHeight: 70,
+          }
+        }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -133,7 +187,9 @@ const Admin = () => {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div">
+          <Typography variant="h6" noWrap component="div" sx={{
+            fontSize: isTV ? '1.5rem' : 'inherit',
+          }}>
             Admin Dashboard
           </Typography>
         </Toolbar>
@@ -141,7 +197,7 @@ const Admin = () => {
       <Box
         component="nav"
         sx={{ 
-          width: { sm: drawerWidth }, 
+          width: { sm: responsiveDrawerWidth }, 
           flexShrink: { sm: 0 },
           '@media (orientation: landscape) and (max-height: 600px)': {
             position: 'sticky',
@@ -162,7 +218,7 @@ const Admin = () => {
             display: { xs: 'block', sm: 'none' },
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
-              width: drawerWidth,
+              width: responsiveDrawerWidth,
               '@media (orientation: landscape) and (max-height: 600px)': {
                 position: 'absolute',
                 height: '100vh',
@@ -179,11 +235,14 @@ const Admin = () => {
             display: { xs: 'none', sm: 'block' },
             '& .MuiDrawer-paper': { 
               boxSizing: 'border-box', 
-              width: drawerWidth,
+              width: responsiveDrawerWidth,
               '@media (orientation: landscape) and (max-height: 600px)': {
                 position: 'relative',
                 height: '100vh',
                 overflowY: 'auto'
+              },
+              '@media (min-width: 1600px)': {
+                paddingTop: '10px',
               }
             },
           }}
@@ -196,17 +255,29 @@ const Admin = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          mt: 8,
+          p: { xs: 2, sm: 3, lg: 4 },
+          width: { sm: `calc(100% - ${responsiveDrawerWidth}px)` },
+          mt: { xs: 7, sm: 8, lg: 9 },
           '@media (orientation: landscape) and (max-height: 600px)': {
             mt: 4,
             p: 2,
             overflowY: 'auto'
+          },
+          '@media (min-width: 1600px)': {
+            mt: 10,
+            p: 4,
           }
         }}
       >
-        <Container maxWidth="lg">
+        <Container 
+          disableGutters
+          sx={{ 
+            width: '100%',
+            '@media (orientation: landscape) and (max-height: 600px)': {
+              p: 0
+            }
+          }}
+        >
           {renderComponent()}
         </Container>
       </Box>

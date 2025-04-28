@@ -24,6 +24,7 @@ import {
   Tabs,
   Tab,
   Divider,
+  CardContent,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -35,7 +36,13 @@ import {
   School as SchoolIcon,
   MenuBook as MenuBookIcon,
   Person as PersonIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
+import { useTheme, useMediaQuery } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import ResponsiveAdminContainer from './ResponsiveAdminContainer';
+import { ResponsiveGridContainer, ResponsiveGridItem, ResponsiveFormContainer } from './ResponsiveGrid';
+import ResponsiveTable from './ResponsiveTable';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -86,6 +93,11 @@ const ProgramManagement = () => {
     totalCredits: 120,
     status: 'active'
   });
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isLandscape = useMediaQuery('(orientation: landscape) and (max-height: 600px)');
+  const isTV = useMediaQuery('(min-width: 1600px)');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchFaculties();
@@ -285,438 +297,45 @@ const ProgramManagement = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, overflowX: 'hidden' }}>
-      <Typography variant="h4" sx={{ mb: 3 }}>Program Management</Typography>
-      
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-          {success}
-        </Alert>
-      )}
-      
+    <ResponsiveAdminContainer title="Program Management">
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
         </Alert>
       )}
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={activeTab} onChange={handleTabChange} aria-label="program management tabs">
-          <Tab label="Programs" />
-          <Tab label="Course Assignment" />
-          <Tab label="Student Enrollment" />
-        </Tabs>
-      </Box>
-
-      <TabPanel value={activeTab} index={0}>
-        <Paper sx={{ p: { xs: 1.5, sm: 2, md: 3 }, mb: 3, borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">Programs List</Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenDialog('add')}
-            >
-              Add Program
-            </Button>
-          </Box>
-          
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <Grid container spacing={2}>
-              {programs.map((program) => (
-                <Grid item xs={12} key={program._id}>
-                  <Paper 
-                    elevation={2} 
-                    sx={{ 
-                      p: 2,
-                      '&:hover': {
-                        backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                      }
-                    }}
-                  >
+      <Paper sx={{ 
+        p: { xs: 1.5, sm: 2, md: 3 }, 
+        mb: 3,
+        '@media (orientation: landscape) and (max-height: 600px)': {
+          p: 1.5
+        }
+      }}>
+        <ResponsiveFormContainer component="form" onSubmit={handleSubmit}>
                     <Grid container spacing={2}>
-                      <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <Box>
-                          <Typography variant="h6" component="h3">
-                            {program.name}
-                          </Typography>
-                          <Typography 
-                            variant="subtitle2" 
-                            color="primary"
-                            sx={{ mb: 1 }}
-                          >
-                            Code: {program.code}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip
-                            label={program.status}
-                            color={
-                              program.status === 'active' ? 'success' :
-                              program.status === 'inactive' ? 'warning' : 'error'
-                            }
-                            size="small"
-                            sx={{ mr: 1 }}
-                          />
-                          <Tooltip title="Edit">
-                            <IconButton 
-                              size="small" 
-                              onClick={() => handleOpenDialog('edit', program)}
-                              sx={{ color: 'primary.main' }}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton 
-                              size="small" 
-                              onClick={() => {
-                                setSelectedProgram(program);
-                                setDeleteConfirmOpen(true);
-                              }}
-                              sx={{ color: 'error.main' }}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <Typography variant="body2" color="textSecondary">
-                          <strong>Faculty:</strong> {program.facultyId?.name || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          <strong>Department:</strong> {program.departmentId?.name || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2">
-                          <strong>Duration:</strong> {program.duration} years
-                        </Typography>
-                        <Typography variant="body2">
-                          <strong>Credits:</strong> {program.totalCredits}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12} sm={4}>
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          <strong>Description:</strong>
-                        </Typography>
-                        <Typography 
-                          variant="body2" 
-                          color="textSecondary"
-                          sx={{
-                            maxHeight: '60px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: 'vertical',
-                          }}
-                        >
-                          {program.description || 'No description available'}
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          )}
-        </Paper>
-      </TabPanel>
-      
-      <TabPanel value={activeTab} index={1}>
-        <Paper sx={{ p: { xs: 1.5, sm: 2, md: 3 }, mb: 3, borderRadius: 2 }}>
-          <Typography variant="h6" gutterBottom>Course Assignments</Typography>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Based on your ER diagram, programs have courses. Assign courses to programs here.
-          </Alert>
-          
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <Grid container spacing={2}>
-              {programs.map((program) => {
-                const programCourses = courses.filter(
-                  course => course.programId?._id === program._id || course.programId === program._id
-                );
-                
-                return (
-                  <Grid item xs={12} key={program._id}>
-                    <Paper 
-                      elevation={2} 
-                      sx={{ 
-                        p: 2,
-                        '&:hover': {
-                          backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                        }
-                      }}
-                    >
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <Box>
-                            <Typography variant="h6" component="h3">
-                              {program.name}
-                            </Typography>
-                            <Typography 
-                              variant="subtitle2" 
-                              color="primary"
-                              sx={{ mb: 1 }}
-                            >
-                              Code: {program.code}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Chip
-                              label={program.status}
-                              color={
-                                program.status === 'active' ? 'success' :
-                                program.status === 'inactive' ? 'warning' : 'error'
-                              }
-                              size="small"
-                              sx={{ mr: 1 }}
-                            />
-                            <Tooltip title="Assign Courses">
-                              <IconButton 
-                                size="small" 
-                                onClick={() => handleAssignCourses(program)}
-                                sx={{ color: 'primary.main' }}
-                              >
-                                <MenuBookIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </Grid>
-                        <Grid item xs={12} sm={4}>
-                          <Typography variant="body2" color="textSecondary">
-                            <strong>Department:</strong> {program.departmentId?.name || 'N/A'}
-                          </Typography>
-                          <Typography variant="body2">
-                            <strong>Credits:</strong> {program.totalCredits}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={4}>
-                          <Typography variant="body2" sx={{ mb: 1 }}>
-                            <strong>Assigned Courses:</strong>
-                          </Typography>
-                          <Typography 
-                            variant="body2" 
-                            color="textSecondary"
-                            sx={{
-                              maxHeight: '60px',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 3,
-                              WebkitBoxOrient: 'vertical',
-                            }}
-                          >
-                            {programCourses.length > 0 ? (
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                {programCourses.map(course => (
-                                  <Chip 
-                                    key={course._id} 
-                                    label={`${course.code}`} 
-                                    size="small" 
-                                    color="primary" 
-                                    variant="outlined" 
-                                  />
-                                ))}
-                              </Box>
-                            ) : (
-                              <Typography key="no-courses" variant="body2" color="text.secondary">
-                                No courses assigned
-                              </Typography>
-                            )}
-                          </Typography>
-                        </Grid>
-                      </Grid>
-                    </Paper>
-                  </Grid>
-                );
-              })}
-            </Grid>
-          )}
-        </Paper>
-      </TabPanel>
-      
-      <TabPanel value={activeTab} index={2}>
-        <Paper sx={{ p: { xs: 1.5, sm: 2, md: 3 }, mb: 3, borderRadius: 2 }}>
-          <Typography variant="h6" gutterBottom>Student Enrollments</Typography>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Based on your ER diagram, students belong to programs. Enroll students in programs here.
-          </Alert>
-          
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <Grid container spacing={2}>
-              {programs.map((program) => {
-                const programStudents = students.filter(
-                  student => student.program === program._id
-                );
-                
-                return (
-                  <Grid item xs={12} key={program._id}>
-                    <Paper 
-                      elevation={2} 
-                      sx={{ 
-                        p: 2,
-                        '&:hover': {
-                          backgroundColor: 'rgba(0, 0, 0, 0.02)'
-                        }
-                      }}
-                    >
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <Box>
-                            <Typography variant="h6" component="h3">
-                              {program.name}
-                            </Typography>
-                            <Typography 
-                              variant="subtitle2" 
-                              color="primary"
-                              sx={{ mb: 1 }}
-                            >
-                              Code: {program.code}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Chip
-                              label={program.status}
-                              color={
-                                program.status === 'active' ? 'success' :
-                                program.status === 'inactive' ? 'warning' : 'error'
-                              }
-                              size="small"
-                              sx={{ mr: 1 }}
-                            />
-                            <Tooltip title="Enroll Students">
-                              <IconButton 
-                                size="small" 
-                                onClick={() => handleAssignStudents(program)}
-                                sx={{ color: 'primary.main' }}
-                              >
-                                <PersonIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </Grid>
-                        <Grid item xs={12} sm={4}>
-                          <Typography variant="body2" color="textSecondary">
-                            <strong>Department:</strong> {program.departmentId?.name || 'N/A'}
-                          </Typography>
-                          <Typography variant="body2">
-                            <strong>Credits:</strong> {program.totalCredits}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={4}>
-                          <Typography variant="body2" sx={{ mb: 1 }}>
-                            <strong>Enrolled Students:</strong>
-                          </Typography>
-                          <Typography 
-                            variant="body2" 
-                            color="textSecondary"
-                            sx={{
-                              maxHeight: '60px',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 3,
-                              WebkitBoxOrient: 'vertical',
-                            }}
-                          >
-                            {programStudents.length > 0 ? (
-                              <Typography key="enrolled-count">
-                                {programStudents.length} students enrolled
-                              </Typography>
-                            ) : (
-                              <Typography key="no-students" variant="body2" color="text.secondary">
-                                No students enrolled
-                              </Typography>
-                            )}
-                          </Typography>
-                        </Grid>
-                      </Grid>
-                    </Paper>
-                  </Grid>
-                );
-              })}
-            </Grid>
-          )}
-        </Paper>
-      </TabPanel>
-
-      {/* Add/Edit Program Dialog */}
-      <Dialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        fullWidth
-        maxWidth="md"
-      >
-        <DialogTitle>{dialogMode === 'add' ? 'Add New Program' : 'Edit Program'}</DialogTitle>
-        <DialogContent>
-          <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} md={4}>
                 <TextField
-                  margin="normal"
-                  required
-                  fullWidth
-                  id="name"
                   label="Program Name"
-                  name="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                size={isMobile ? "small" : "medium"}
+                fullWidth
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  margin="normal"
+            <Grid item xs={12} sm={6} md={4}>
+              <FormControl 
                   required
                   fullWidth
-                  id="code"
-                  label="Program Code"
-                  name="code"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth margin="normal">
-                  <InputLabel id="faculty-label">Faculty</InputLabel>
+                size={isMobile ? "small" : "medium"}
+              >
+                <InputLabel>Department</InputLabel>
                   <Select
-                    labelId="faculty-label"
-                    id="faculty"
-                    value={formData.facultyId}
-                    label="Faculty"
-                    onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
-                  >
-                    {faculties.map(faculty => (
-                      <MenuItem key={faculty._id} value={faculty._id}>
-                        {faculty.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth margin="normal">
-                  <InputLabel id="department-label">Department</InputLabel>
-                  <Select
-                    labelId="department-label"
-                    id="department"
                     value={formData.departmentId}
                     label="Department"
                     onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
                   >
-                    {departments.map(department => (
+                  {departments.map((department) => (
                       <MenuItem key={department._id} value={department._id}>
                         {department.name}
                       </MenuItem>
@@ -724,215 +343,158 @@ const ProgramManagement = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} md={2}>
                 <TextField
-                  margin="normal"
-                  fullWidth
-                  id="duration"
                   label="Duration (Years)"
-                  name="duration"
                   type="number"
                   value={formData.duration}
-                  onChange={(e) => setFormData({ ...formData, duration: Number(e.target.value) })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  margin="normal"
+                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                required
+                inputProps={{ min: 1, max: 6 }}
+                size={isMobile ? "small" : "medium"}
                   fullWidth
-                  id="totalCredits"
-                  label="Total Credits"
-                  name="totalCredits"
-                  type="number"
-                  value={formData.totalCredits}
-                  onChange={(e) => setFormData({ ...formData, totalCredits: Number(e.target.value) })}
                 />
               </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  margin="normal"
+            <Grid item xs={12} sm={6} md={2} sx={{ display: 'flex', alignItems: 'center' }}>
+              <Button
+                type="submit"
+                variant="contained"
                   fullWidth
-                  id="description"
-                  label="Description"
-                  name="description"
-                  multiline
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                />
-              </Grid>
+                disabled={loading}
+              >
+                {loading ? <CircularProgress size={24} /> : dialogMode === 'add' ? 'Add Program' : 'Update Program'}
+              </Button>
             </Grid>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button 
-            onClick={handleSubmit} 
-            variant="contained" 
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-          >
-            {dialogMode === 'add' ? 'Add Program' : 'Update Program'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </Grid>
+        </ResponsiveFormContainer>
+      </Paper>
 
-      {/* Delete Confirmation Dialog */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'center' }}>
+        <Typography variant="subtitle1" component="div">
+          {programs.length} Programs Available
+        </Typography>
+      </Box>
+
+      <ResponsiveTable
+        columns={[
+          { header: 'Name', field: 'name' },
+          { header: 'Department', render: (row) => row.department?.name || 'Unknown Department' },
+          { header: 'Duration', field: 'duration', render: (row) => `${row.duration} years` },
+          { 
+            header: 'Actions', 
+            align: 'right',
+            render: (row) => (
+              <>
+                <IconButton 
+                  size="small"
+                  onClick={() => navigate(`/admin/programs/${row._id}`)}
+                  color="primary"
+                  sx={{ mr: 1 }}
+                >
+                  <VisibilityIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => handleOpenDialog('edit', row)}
+                  color="secondary"
+                  sx={{ mr: 1 }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setSelectedProgram(row);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  color="error"
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </>
+            )
+          }
+        ]}
+        data={programs}
+        loading={loading}
+        emptyMessage="No programs found"
+        renderMobileCard={(program) => (
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box>
+                <Typography variant="h6" component="div" sx={{ 
+                  fontWeight: 'bold',
+                  fontSize: { xs: '1rem', sm: '1.25rem' }
+                }}>
+                  {program.name}
+                </Typography>
+                <Typography color="text.secondary" variant="body2">
+                  {program.department?.name || 'Unknown Department'}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  <Chip 
+                    size="small" 
+                    label={`${program.duration} years`} 
+                    color="primary" 
+                    variant="outlined" 
+                  />
+                </Typography>
+          </Box>
+              <Box>
+                <IconButton 
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/admin/programs/${program._id}`);
+                  }}
+                  color="primary"
+                >
+                  <VisibilityIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenDialog('edit', program);
+                  }}
+                  color="secondary"
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedProgram(program);
+                    setDeleteConfirmOpen(true);
+                  }}
+                  color="error"
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </Box>
+          </CardContent>
+        )}
+      />
+
+      {/* Delete confirmation dialog */}
       <Dialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
-        aria-labelledby="delete-dialog-title"
       >
-        <DialogTitle id="delete-dialog-title">Confirm Delete</DialogTitle>
+        <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete the program "{selectedProgram?.name}"? This action cannot be undone.
-          </Typography>
+          <Typography>Are you sure you want to delete this program? This action cannot be undone.</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleDelete} 
-            variant="contained" 
-            color="error" 
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : <DeleteIcon />}
-          >
+          <Button onClick={handleDelete} color="error" variant="contained">
             Delete
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Assign Courses Dialog */}
-      <Dialog
-        open={assignCoursesOpen}
-        onClose={() => setAssignCoursesOpen(false)}
-        fullWidth
-        maxWidth="md"
-      >
-        <DialogTitle>Assign Courses to {selectedProgram?.name}</DialogTitle>
-        <DialogContent>
-          <Typography gutterBottom>
-            Select courses to assign to this program
-          </Typography>
-          <Box sx={{ mt: 2, maxHeight: '400px', overflowY: 'auto' }}>
-            <Grid container spacing={1}>
-              {courses.map(course => (
-                <Grid item xs={12} sm={6} md={4} key={course._id}>
-                  <Paper 
-                    sx={{ 
-                      p: 1, 
-                      bgcolor: selectedCourses.includes(course._id) ? 'rgba(106, 17, 203, 0.1)' : 'white',
-                      border: selectedCourses.includes(course._id) ? '1px solid #6a11cb' : '1px solid #eee',
-                      borderRadius: 1,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                    onClick={() => {
-                      if (selectedCourses.includes(course._id)) {
-                        setSelectedCourses(selectedCourses.filter(id => id !== course._id));
-                      } else {
-                        setSelectedCourses([...selectedCourses, course._id]);
-                      }
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          {course.code}
-                        </Typography>
-                        <Typography variant="body2" noWrap>
-                          {course.name}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Typography variant="body2" sx={{ mr: 2 }}>
-            {selectedCourses.length} courses selected
-          </Typography>
-          <Button onClick={() => setAssignCoursesOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleSaveAssignedCourses} 
-            variant="contained" 
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-          >
-            Save Assignments
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Assign Students Dialog */}
-      <Dialog
-        open={assignStudentsOpen}
-        onClose={() => setAssignStudentsOpen(false)}
-        fullWidth
-        maxWidth="md"
-      >
-        <DialogTitle>Enroll Students in {selectedProgram?.name}</DialogTitle>
-        <DialogContent>
-          <Typography gutterBottom>
-            Select students to enroll in this program
-          </Typography>
-          <Box sx={{ mt: 2, maxHeight: '400px', overflowY: 'auto' }}>
-            <Grid container spacing={1}>
-              {students.map(student => (
-                <Grid item xs={12} sm={6} key={student._id}>
-                  <Paper 
-                    sx={{ 
-                      p: 1, 
-                      bgcolor: selectedStudents.includes(student._id) ? 'rgba(106, 17, 203, 0.1)' : 'white',
-                      border: selectedStudents.includes(student._id) ? '1px solid #6a11cb' : '1px solid #eee',
-                      borderRadius: 1,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                    onClick={() => {
-                      if (selectedStudents.includes(student._id)) {
-                        setSelectedStudents(selectedStudents.filter(id => id !== student._id));
-                      } else {
-                        setSelectedStudents([...selectedStudents, student._id]);
-                      }
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body1">
-                          {student.name}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          {student.email}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Paper>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Typography variant="body2" sx={{ mr: 2 }}>
-            {selectedStudents.length} students selected
-          </Typography>
-          <Button onClick={() => setAssignStudentsOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={handleSaveAssignedStudents} 
-            variant="contained" 
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-          >
-            Save Enrollments
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+    </ResponsiveAdminContainer>
   );
 };
 
