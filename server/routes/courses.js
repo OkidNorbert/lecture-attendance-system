@@ -9,8 +9,17 @@ const router = express.Router();
 // @access  Private (all authenticated users)
 router.get('/', protect, async (req, res) => {
   try {
-    const courses = await Course.find()
+    const { program_id } = req.query;
+    let query = {};
+    
+    // Add program filter if provided
+    if (program_id) {
+      query.program_id = program_id;
+    }
+    
+    const courses = await Course.find(query)
       .populate('program_id', 'name')
+      .populate('lecturers', 'first_name last_name')
       .sort({ course_name: 1 });
 
     res.json(courses);
@@ -122,6 +131,60 @@ router.get('/lecturer', protect, async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching lecturer courses:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
+// @route   PUT api/courses/:courseId/lecturers
+// @desc    Assign a lecturer to a course
+// @access  Private (admin only)
+router.put('/:courseId/lecturers', protect, async (req, res) => {
+  try {
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized. Admin access only.' });
+    }
+    
+    const { lecturerId } = req.body;
+    const { courseId } = req.params;
+    
+    // Validate lecturer exists and is a lecturer
+    const lecturer = await User.findById(lecturerId);
+    if (!lecturer || lecturer.role !== 'lecturer') {
+      return res.status(400).json({ msg: 'Invalid lecturer' });
+    }
+    
+    // Validate course exists
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({ msg: 'Course not found' });
+    }
+    
+    // Add lecturer to course's lecturers array if not already there
+    if (!course.lecturers.includes(lecturerId)) {
+      course.lecturers.push(lecturerId);
+      await course.save();
+    }
+    
+    // Add course to lecturer's taught_courses array if not already there
+    if (lecturer.taught_courses && !lecturer.taught_courses.includes(courseId)) {
+      await Lecturer.findByIdAndUpdate(
+        lecturerId,
+        { $addToSet: { taught_courses: courseId } }
+      );
+    }
+    
+    res.json({ 
+      msg: 'Lecturer assigned to course successfully',
+      course: {
+        _id: course._id,
+        course_name: course.course_name,
+        course_code: course.course_code,
+        lecturers: course.lecturers
+      }
+    });
+  } catch (err) {
+    console.error('Error assigning lecturer to course:', err);
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });

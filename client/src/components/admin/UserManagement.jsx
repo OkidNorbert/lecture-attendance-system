@@ -65,6 +65,10 @@ const UserManagement = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
+  const [unapprovedUsers, setUnapprovedUsers] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
+  const [viewingEnrollments, setViewingEnrollments] = useState(false);
+  const [programCourses, setProgramCourses] = useState([]);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -74,6 +78,7 @@ const UserManagement = () => {
     fetchUsers();
     fetchCourses();
     fetchPrograms();
+    fetchEnrollments();
     
     // Auto switch to grid view on mobile or landscape orientation
     if (isMobile || isLandscape) {
@@ -98,7 +103,12 @@ const UserManagement = () => {
         }
       });
 
-      setUsers(response.data);
+      // Separate approved and unapproved users
+      const approvedUsers = response.data.filter(user => user.isApproved);
+      const notApprovedUsers = response.data.filter(user => !user.isApproved);
+      
+      setUsers(approvedUsers);
+      setUnapprovedUsers(notApprovedUsers);
       setError('');
     } catch (err) {
       console.error('Error in fetchUsers:', err);
@@ -146,6 +156,21 @@ const UserManagement = () => {
     }
   };
 
+  const fetchEnrollments = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/enrollments', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      setEnrollments(response.data);
+    } catch (err) {
+      console.error('Error fetching enrollments:', err);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -170,18 +195,59 @@ const UserManagement = () => {
 
       const newUser = userResponse.data;
 
-      // If user is a student or lecturer, create enrollments
-      if (formData.role === 'student' || formData.role === 'lecturer') {
-        for (const courseId of formData.courses) {
+      // For students: Automatically enroll in all courses of the selected program
+      if (formData.role === 'student' && formData.program) {
+        // Get all courses for the selected program
+        const programCoursesResponse = await axios.get(
+          `http://localhost:5000/api/courses?program_id=${formData.program}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        const programCourses = programCoursesResponse.data;
+        
+        // For each course in the program, create an enrollment
+        for (const course of programCourses) {
+          // Find a lecturer for this course
+          let lecturerId;
+          
+          if (course.lecturers && course.lecturers.length > 0) {
+            // Use the first lecturer assigned to the course
+            lecturerId = course.lecturers[0];
+          } else {
+            // Try to find any lecturer
+            const lecturersResponse = await axios.get(
+              'http://localhost:5000/api/users?role=lecturer',
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+            
+            if (lecturersResponse.data.length > 0) {
+              lecturerId = lecturersResponse.data[0]._id;
+            } else {
+              console.error(`No lecturer found for course ${course._id}`);
+              continue; // Skip this enrollment
+            }
+          }
+          
+          // Create enrollment
           await axios.post(
             'http://localhost:5000/api/enrollments',
             {
               studentId: newUser._id,
-              courseId,
+              courseId: course._id,
+              lecturerId,
               programId: formData.program,
               semester: formData.semester,
-              academicYear: formData.academicYear,
-              lecturerId: formData.role === 'student' ? null : newUser._id
+              academicYear: formData.academicYear
             },
             {
               headers: {
@@ -190,6 +256,51 @@ const UserManagement = () => {
               }
             }
           );
+        }
+      } 
+      // For lecturers: Assign them to selected courses
+      else if (formData.role === 'lecturer' && formData.courses.length > 0) {
+        for (const courseId of formData.courses) {
+          // Update course to add lecturer
+          await axios.put(
+            `http://localhost:5000/api/courses/${courseId}/lecturers`,
+            {
+              lecturerId: newUser._id
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          // Get students enrolled in this course
+          const enrollmentsResponse = await axios.get(
+            `http://localhost:5000/api/enrollments?courseId=${courseId}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          // Update enrollments to include this lecturer
+          for (const enrollment of enrollmentsResponse.data) {
+            await axios.put(
+              `http://localhost:5000/api/enrollments/${enrollment._id}`,
+              {
+                lecturerId: newUser._id
+              },
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+          }
         }
       }
 
@@ -206,6 +317,10 @@ const UserManagement = () => {
         academicYear: ''
       });
       setError('');
+      
+      // Refresh enrollments after creating new users and enrollments
+      fetchEnrollments();
+      
     } catch (err) {
       setError(err.response?.data?.msg || 'Error creating user and enrollments');
     } finally {
@@ -269,17 +384,27 @@ const UserManagement = () => {
 
   const handleEdit = (user) => {
     setEditingUser(user);
-    setFormData({
-      first_name: user.name.split(' ')[0],
-      last_name: user.name.split(' ')[1],
+    
+    // Set initial form data
+    const initialFormData = {
+      first_name: user.first_name || (user.name ? user.name.split(' ')[0] : ''),
+      last_name: user.last_name || (user.name ? user.name.split(' ')[1] : ''),
       email: user.email,
       role: user.role,
       password: '', // Don't populate password
-      program: user.program,
-      courses: user.courses.map(course => course._id),
-      semester: user.semester,
-      academicYear: user.academicYear
-    });
+      program: user.program_id || user.program || '',
+      courses: user.courses?.map(course => (typeof course === 'object' ? course._id : course)) || [],
+      semester: user.semester || '',
+      academicYear: user.academicYear || ''
+    };
+    
+    setFormData(initialFormData);
+    
+    // If user is a student and has a program, fetch the program courses
+    if (user.role === 'student' && (user.program_id || user.program)) {
+      handleProgramChange(user.program_id || user.program);
+    }
+    
     setOpenDialog(true);
   };
 
@@ -314,6 +439,38 @@ const UserManagement = () => {
     setViewMode(viewMode === 'table' ? 'grid' : 'table');
   };
 
+  // Add program change handler
+  const handleProgramChange = async (programId) => {
+    setFormData({ ...formData, program: programId });
+    
+    if (programId && formData.role === 'student') {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`http://localhost:5000/api/courses?program_id=${programId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        setProgramCourses(response.data);
+        
+        // For students, automatically select all program courses
+        if (formData.role === 'student') {
+          setFormData(prev => ({
+            ...prev,
+            program: programId,
+            courses: response.data.map(course => course._id)
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching program courses:', error);
+      }
+    } else {
+      setProgramCourses([]);
+    }
+  };
+
   // Render the GridView for users
   const renderGridView = () => (
     <ResponsiveGridContainer>
@@ -340,7 +497,9 @@ const UserManagement = () => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap'
                 }}>
-                  {user.name}
+                  {user.first_name && user.last_name 
+                    ? `${user.first_name} ${user.last_name}`
+                    : user.name || 'Unknown User'}
                 </Typography>
                 <Chip 
                   label={user.role.charAt(0).toUpperCase() + user.role.slice(1)} 
@@ -409,7 +568,11 @@ const UserManagement = () => {
         <TableBody>
           {users.map((user) => (
             <TableRow key={user._id}>
-              <TableCell>{user.name}</TableCell>
+              <TableCell>
+                {user.first_name && user.last_name 
+                  ? `${user.first_name} ${user.last_name}`
+                  : user.name || 'Unknown User'}
+              </TableCell>
               <TableCell>{user.email}</TableCell>
               <TableCell>
                 <Chip 
@@ -442,6 +605,202 @@ const UserManagement = () => {
     </TableContainer>
   );
 
+  const approveUser = async (userId) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(
+        `http://localhost:5000/api/admin/users/${userId}/approve`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      // Update local state
+      const userToApprove = unapprovedUsers.find(user => user._id === userId);
+      if (userToApprove) {
+        setUnapprovedUsers(unapprovedUsers.filter(user => user._id !== userId));
+        setUsers([...users, {...userToApprove, isApproved: true}]);
+      }
+      
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Error approving user');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const showUserEnrollments = (userId) => {
+    setSelectedUserId(userId);
+    setViewingEnrollments(true);
+  };
+  
+  const closeEnrollmentsView = () => {
+    setViewingEnrollments(false);
+    setSelectedUserId(null);
+  };
+
+  // Render pending approvals section
+  const renderPendingApprovals = () => {
+    if (unapprovedUsers.length === 0) {
+      return null;
+    }
+    
+    return (
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Pending Approvals ({unapprovedUsers.length})
+        </Typography>
+        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+          <TableContainer sx={{ maxHeight: 300 }}>
+            <Table stickyHeader aria-label="pending approvals table">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Role</TableCell>
+                  <TableCell>Enrollments</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {unapprovedUsers.map((user) => (
+                  <TableRow key={user._id} hover>
+                    <TableCell>{user.first_name} {user.last_name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={user.role} 
+                        size="small" 
+                        color={getRoleColor(user.role)} 
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        size="small" 
+                        variant="outlined" 
+                        onClick={() => showUserEnrollments(user._id)}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        onClick={() => approveUser(user._id)}
+                      >
+                        Approve
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      </Box>
+    );
+  };
+  
+  // Dialog for viewing enrollments
+  const renderEnrollmentsDialog = () => {
+    if (!viewingEnrollments || !selectedUserId) return null;
+    
+    const userEnrollments = enrollments.filter(
+      e => e.studentId === selectedUserId || e.lecturerId === selectedUserId
+    );
+    
+    const selectedUser = [...users, ...unapprovedUsers].find(u => u._id === selectedUserId);
+    const isStudent = selectedUser?.role === 'student';
+    
+    return (
+      <Dialog
+        open={viewingEnrollments}
+        onClose={closeEnrollmentsView}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">
+            {selectedUser ? `${selectedUser.first_name} ${selectedUser.last_name}'s Enrollments` : 'Enrollments'}
+          </Typography>
+          <IconButton onClick={closeEnrollmentsView}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {userEnrollments.length === 0 ? (
+            <Alert severity="info">
+              {isStudent ? 
+                "This student isn't enrolled in any courses yet." :
+                "This lecturer isn't assigned to any courses yet."
+              }
+            </Alert>
+          ) : (
+            <>
+              <Typography variant="subtitle1" gutterBottom>
+                {isStudent ? 
+                  `Enrolled in ${userEnrollments.length} course${userEnrollments.length !== 1 ? 's' : ''}` :
+                  `Teaching ${userEnrollments.length} course${userEnrollments.length !== 1 ? 's' : ''}`
+                }
+              </Typography>
+              <TableContainer sx={{ maxHeight: 400 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Course Code</TableCell>
+                      <TableCell>Course Name</TableCell>
+                      {isStudent && <TableCell>Lecturer</TableCell>}
+                      {!isStudent && <TableCell>Student</TableCell>}
+                      <TableCell>Semester</TableCell>
+                      <TableCell>Academic Year</TableCell>
+                      <TableCell>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {userEnrollments.map(enrollment => (
+                      <TableRow key={enrollment._id} hover>
+                        <TableCell>{enrollment.course?.course_code || 'N/A'}</TableCell>
+                        <TableCell>{enrollment.course?.course_name || 'Unknown Course'}</TableCell>
+                        {isStudent && (
+                          <TableCell>{enrollment.lecturer?.first_name} {enrollment.lecturer?.last_name || 'Unknown Lecturer'}</TableCell>
+                        )}
+                        {!isStudent && (
+                          <TableCell>{enrollment.student?.first_name} {enrollment.student?.last_name || 'Unknown Student'}</TableCell>
+                        )}
+                        <TableCell>{enrollment.semester}</TableCell>
+                        <TableCell>{enrollment.academicYear}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={enrollment.status} 
+                            size="small"
+                            color={enrollment.status === 'enrolled' ? 'success' : 'default'}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEnrollmentsView} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
+  };
+
   return (
     <ResponsiveAdminContainer title="User Management">
       <Box sx={{ mb: 4 }}>
@@ -463,6 +822,9 @@ const UserManagement = () => {
           {error}
         </Alert>
       )}
+
+      {/* Pending approvals section */}
+      {renderPendingApprovals()}
 
       <ResponsiveFormContainer>
         <Paper sx={{ p: 3 }}>
@@ -528,7 +890,7 @@ const UserManagement = () => {
                       <InputLabel>Program</InputLabel>
                       <Select
                         value={formData.program}
-                        onChange={(e) => setFormData({ ...formData, program: e.target.value })}
+                        onChange={(e) => handleProgramChange(e.target.value)}
                         label="Program"
                         required
                       >
@@ -540,27 +902,65 @@ const UserManagement = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12}>
-                    <Autocomplete
-                      multiple
-                      options={courses}
-                      getOptionLabel={(option) => `${option.course_code} - ${option.course_name}`}
-                      value={courses.filter(course => formData.courses.includes(course._id))}
-                      onChange={(_, newValue) => {
-                        setFormData({
-                          ...formData,
-                          courses: newValue.map(course => course._id)
-                        });
-                      }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="Courses"
-                          required
-                        />
-                      )}
-                    />
-                  </Grid>
+                  
+                  {/* Show program courses for students in edit form */}
+                  {formData.role === 'student' && formData.program && programCourses.length > 0 && (
+                    <Grid item xs={12}>
+                      <Paper sx={{ p: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Student will be enrolled in these courses:
+                        </Typography>
+                        <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                          {programCourses.map(course => (
+                            <Box 
+                              key={course._id} 
+                              sx={{ 
+                                display: 'flex', 
+                                alignItems: 'center',
+                                py: 0.5
+                              }}
+                            >
+                              <Chip 
+                                size="small" 
+                                label={course.course_code} 
+                                color="primary" 
+                                sx={{ mr: 1 }} 
+                              />
+                              <Typography variant="body2">
+                                {course.course_name}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  )}
+                  
+                  {/* For lecturers, allow selecting courses */}
+                  {formData.role === 'lecturer' && (
+                    <Grid item xs={12}>
+                      <Autocomplete
+                        multiple
+                        options={courses}
+                        getOptionLabel={(option) => `${option.course_code} - ${option.course_name}`}
+                        value={courses.filter(course => formData.courses.includes(course._id))}
+                        onChange={(_, newValue) => {
+                          setFormData({
+                            ...formData,
+                            courses: newValue.map(course => course._id)
+                          });
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Courses"
+                            required
+                          />
+                        )}
+                      />
+                    </Grid>
+                  )}
+                  
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
@@ -605,7 +1005,7 @@ const UserManagement = () => {
         {!isMobile && !isLandscape && (
           <Button 
             variant="outlined" 
-                      size="small"
+            size="small"
             onClick={toggleView}
           >
             Switch to {viewMode === 'table' ? 'Grid' : 'Table'} View
@@ -694,7 +1094,7 @@ const UserManagement = () => {
                     <InputLabel>Program</InputLabel>
                     <Select
                       value={formData.program}
-                      onChange={(e) => setFormData({ ...formData, program: e.target.value })}
+                      onChange={(e) => handleProgramChange(e.target.value)}
                       label="Program"
                       required
                     >
@@ -706,27 +1106,65 @@ const UserManagement = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12}>
-                  <Autocomplete
-                    multiple
-                    options={courses}
-                    getOptionLabel={(option) => `${option.course_code} - ${option.course_name}`}
-                    value={courses.filter(course => formData.courses.includes(course._id))}
-                    onChange={(_, newValue) => {
-                      setFormData({
-                        ...formData,
-                        courses: newValue.map(course => course._id)
-                      });
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Courses"
-                        required
-                      />
-                    )}
-                  />
-                </Grid>
+                
+                {/* Show program courses for students in edit form */}
+                {formData.role === 'student' && formData.program && programCourses.length > 0 && (
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 2 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Student will be enrolled in these courses:
+                      </Typography>
+                      <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                        {programCourses.map(course => (
+                          <Box 
+                            key={course._id} 
+                            sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center',
+                              py: 0.5
+                            }}
+                          >
+                            <Chip 
+                              size="small" 
+                              label={course.course_code} 
+                              color="primary" 
+                              sx={{ mr: 1 }} 
+                            />
+                            <Typography variant="body2">
+                              {course.course_name}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Paper>
+                  </Grid>
+                )}
+                
+                {/* For lecturers, allow selecting courses */}
+                {formData.role === 'lecturer' && (
+                  <Grid item xs={12}>
+                    <Autocomplete
+                      multiple
+                      options={courses}
+                      getOptionLabel={(option) => `${option.course_code} - ${option.course_name}`}
+                      value={courses.filter(course => formData.courses.includes(course._id))}
+                      onChange={(_, newValue) => {
+                        setFormData({
+                          ...formData,
+                          courses: newValue.map(course => course._id)
+                        });
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Courses"
+                          required
+                        />
+                      )}
+                    />
+                  </Grid>
+                )}
+                
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
@@ -782,6 +1220,9 @@ const UserManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Enrollments dialog */}
+      {renderEnrollmentsDialog()}
     </ResponsiveAdminContainer>
   );
 };

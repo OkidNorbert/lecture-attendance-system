@@ -12,6 +12,21 @@ const Dashboard = () => {
     totalSessions: 0,
     attendanceRate: 0
   });
+  const [enrollmentData, setEnrollmentData] = useState({
+    currentSemester: '',
+    currentYear: '',
+    enrollments: [],
+    availableSemesters: [],
+    isEnrollmentOpen: false
+  });
+  const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
+  const [enrollmentForm, setEnrollmentForm] = useState({
+    semester: '',
+    academicYear: '',
+    isLoading: false,
+    error: null,
+    success: null
+  });
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -38,6 +53,57 @@ const Dashboard = () => {
           totalSessions: 5,
           attendanceRate: 60
         };
+        
+        // Fetch student enrollments
+        try {
+          const enrollmentsResponse = await axios.get("/api/student/enrollments");
+          
+          if (enrollmentsResponse.data && enrollmentsResponse.data.length > 0) {
+            // Get the most recent enrollment
+            const sortedEnrollments = [...enrollmentsResponse.data].sort((a, b) => 
+              new Date(b.enrollmentDate) - new Date(a.enrollmentDate)
+            );
+            
+            const latestEnrollment = sortedEnrollments[0];
+            
+            // Determine available next semesters
+            const currentSemester = parseInt(latestEnrollment.semester);
+            const currentYear = latestEnrollment.academicYear;
+            
+            // Parse the academic year (format: "2023-2024")
+            const [startYear, endYear] = currentYear.split('-').map(year => parseInt(year));
+            
+            // Generate next possible semester options
+            const nextOptions = [];
+            
+            if (currentSemester < 2) {
+              // Can enroll in next semester of same year
+              nextOptions.push({
+                semester: (currentSemester + 1).toString(),
+                academicYear: currentYear,
+                label: `Semester ${currentSemester + 1} (${currentYear})`
+              });
+            } else {
+              // Need to go to next year
+              const nextAcademicYear = `${startYear + 1}-${endYear + 1}`;
+              nextOptions.push({
+                semester: "1",
+                academicYear: nextAcademicYear,
+                label: `Semester 1 (${nextAcademicYear})`
+              });
+            }
+            
+            setEnrollmentData({
+              currentSemester: latestEnrollment.semester,
+              currentYear: latestEnrollment.academicYear,
+              enrollments: sortedEnrollments,
+              availableSemesters: nextOptions,
+              isEnrollmentOpen: true // You can control this with API data if needed
+            });
+          }
+        } catch (enrollErr) {
+          console.error("[DEBUG] Error fetching enrollments:", enrollErr);
+        }
         
         // Fetch attendance stats for student - try multiple approaches
         try {
@@ -114,6 +180,65 @@ const Dashboard = () => {
 
     fetchUserData();
   }, [navigate]);
+
+  const handleEnrollmentModalOpen = () => {
+    // Set the default enrollment form values
+    if (enrollmentData.availableSemesters.length > 0) {
+      const nextOption = enrollmentData.availableSemesters[0];
+      setEnrollmentForm({
+        ...enrollmentForm,
+        semester: nextOption.semester,
+        academicYear: nextOption.academicYear
+      });
+    }
+    setShowEnrollmentModal(true);
+  };
+
+  const handleEnrollmentModalClose = () => {
+    setShowEnrollmentModal(false);
+    setEnrollmentForm({
+      ...enrollmentForm,
+      error: null,
+      success: null
+    });
+  };
+
+  const handleEnrollmentSubmit = async () => {
+    setEnrollmentForm({
+      ...enrollmentForm,
+      isLoading: true,
+      error: null,
+      success: null
+    });
+
+    try {
+      // Submit enrollment request
+      const response = await axios.post("/api/student/enroll", {
+        semester: enrollmentForm.semester,
+        academicYear: enrollmentForm.academicYear
+      });
+
+      // Handle success
+      setEnrollmentForm({
+        ...enrollmentForm,
+        isLoading: false,
+        success: "Successfully enrolled in new semester!"
+      });
+
+      // Refresh enrollment data after a short delay
+      setTimeout(() => {
+        // Reload the page to refresh all data
+        window.location.reload();
+      }, 2000);
+    } catch (err) {
+      console.error("[DEBUG] Enrollment error:", err);
+      setEnrollmentForm({
+        ...enrollmentForm,
+        isLoading: false,
+        error: err.response?.data?.msg || "Failed to enroll. Please try again."
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -228,6 +353,59 @@ const Dashboard = () => {
           </div>
         </div>
         
+        {/* Current Enrollment Section */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Current Enrollment</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 rounded-xl p-5">
+              <div className="flex items-center mb-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-amber-700 text-xl">📚</span>
+                </div>
+                <h3 className="font-semibold text-amber-900">Current Semester</h3>
+              </div>
+              <p className="text-2xl font-bold text-amber-800">
+                {enrollmentData.currentSemester ? `Semester ${enrollmentData.currentSemester}` : 'Not enrolled'}
+              </p>
+            </div>
+            
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-5">
+              <div className="flex items-center mb-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-blue-700 text-xl">📅</span>
+                </div>
+                <h3 className="font-semibold text-blue-900">Academic Year</h3>
+              </div>
+              <p className="text-2xl font-bold text-blue-800">
+                {enrollmentData.currentYear || 'Not enrolled'}
+              </p>
+            </div>
+            
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-5 flex flex-col">
+              <div className="flex items-center mb-3">
+                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-emerald-700 text-xl">➕</span>
+                </div>
+                <h3 className="font-semibold text-emerald-900">Enrollment</h3>
+              </div>
+              
+              {enrollmentData.isEnrollmentOpen && enrollmentData.availableSemesters.length > 0 ? (
+                <button
+                  onClick={handleEnrollmentModalOpen}
+                  className="mt-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg shadow hover:shadow-lg transition duration-300"
+                >
+                  Enroll for Next Semester
+                </button>
+              ) : (
+                <p className="text-gray-600 italic">
+                  Enrollment not available at this time
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+        
         {/* Quick Actions Section */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
           <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h2>
@@ -335,6 +513,101 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+      
+      {/* Enrollment Modal */}
+      {showEnrollmentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
+            <button 
+              onClick={handleEnrollmentModalClose}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            <h3 className="text-xl font-bold text-gray-900 mb-5">Enroll for Next Semester</h3>
+            
+            {enrollmentForm.error && (
+              <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg border border-red-100">
+                {enrollmentForm.error}
+              </div>
+            )}
+            
+            {enrollmentForm.success && (
+              <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-lg border border-green-100">
+                {enrollmentForm.success}
+              </div>
+            )}
+            
+            <div className="space-y-4">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Available Enrollment Options:
+                </label>
+                <div className="space-y-2">
+                  {enrollmentData.availableSemesters.map((option, index) => (
+                    <div 
+                      key={index} 
+                      className="flex items-center p-3 border border-indigo-100 rounded-lg bg-indigo-50"
+                    >
+                      <input
+                        type="radio"
+                        id={`option-${index}`}
+                        name="enrollmentOption"
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+                        checked={enrollmentForm.semester === option.semester && enrollmentForm.academicYear === option.academicYear}
+                        onChange={() => setEnrollmentForm({
+                          ...enrollmentForm,
+                          semester: option.semester,
+                          academicYear: option.academicYear
+                        })}
+                      />
+                      <label htmlFor={`option-${index}`} className="ml-3 block text-sm font-medium text-gray-700">
+                        {option.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium text-gray-800">What happens next?</h4>
+                <p className="text-sm text-gray-600">
+                  By enrolling for the next semester, you'll be automatically enrolled in all courses for your program in that semester. Your attendance will be tracked for those courses.
+                </p>
+              </div>
+              
+              <div className="pt-4 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={handleEnrollmentModalClose}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEnrollmentSubmit}
+                  disabled={enrollmentForm.isLoading || enrollmentForm.success}
+                  className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-lg shadow-md hover:shadow-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {enrollmentForm.isLoading ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : "Confirm Enrollment"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

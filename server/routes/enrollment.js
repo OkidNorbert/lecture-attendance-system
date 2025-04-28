@@ -82,14 +82,31 @@ router.get('/', protect, async (req, res) => {
     if (academicYear) query.academicYear = academicYear;
 
     const enrollments = await Enrollment.find(query)
-      .populate('student', 'name email')
-      .populate('course', 'course_code course_name')
-      .populate('lecturer', 'name email')
-      .populate('program', 'name code');
+      .populate('studentId', 'first_name last_name email student_id')
+      .populate('courseId', 'course_code course_name credits')
+      .populate('lecturerId', 'first_name last_name email lecturer_id')
+      .populate('programId', 'name code');
 
-    res.json(enrollments);
+    // Transform the response to match the expected structure in the frontend
+    const formattedEnrollments = enrollments.map(enrollment => ({
+      _id: enrollment._id,
+      status: enrollment.status,
+      semester: enrollment.semester,
+      academicYear: enrollment.academicYear,
+      enrollmentDate: enrollment.enrollmentDate,
+      studentId: enrollment.studentId?._id || null,
+      courseId: enrollment.courseId?._id || null,
+      lecturerId: enrollment.lecturerId?._id || null,
+      programId: enrollment.programId?._id || null,
+      student: enrollment.studentId,
+      course: enrollment.courseId,
+      lecturer: enrollment.lecturerId,
+      program: enrollment.programId
+    }));
+
+    res.json(formattedEnrollments);
   } catch (error) {
-    console.error(error);
+    console.error('Error fetching enrollments:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

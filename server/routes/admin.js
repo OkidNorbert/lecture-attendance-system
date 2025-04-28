@@ -1299,11 +1299,26 @@ router.get('/users', protect, async (req, res) => {
       return res.status(403).json({ msg: 'Not authorized as admin' });
     }
 
-    const users = await User.find().select('-password');
-    res.json(users);
+    const users = await User.find()
+      .select('first_name last_name email role isApproved department')
+      .populate('department', 'name')
+      .sort({ first_name: 1, last_name: 1 });
+
+    // Return consistent user structure
+    const formattedUsers = users.map(user => ({
+      _id: user._id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      role: user.role,
+      isApproved: user.isApproved,
+      department: user.department ? user.department.name : null
+    }));
+
+    res.json(formattedUsers);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Error fetching all users:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -2412,6 +2427,37 @@ router.post("/register-student", protect, adminMiddleware, async (req, res) => {
         enrollments: enrollments.length
       });
     }
+  } catch (err) {
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Approve a user
+router.put("/users/:userId/approve", protect, adminMiddleware, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ msg: "❌ User not found" });
+    }
+    
+    // Update user approval status
+    user.isApproved = true;
+    await user.save();
+    
+    res.status(200).json({ 
+      msg: "✅ User approved successfully",
+      user: {
+        id: user._id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        role: user.role,
+        isApproved: user.isApproved
+      }
+    });
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
