@@ -206,79 +206,259 @@ const SystemOverview = ({ stats }) => {
 
       {/* Key Stats */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2, textAlign: 'center', borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-              <Avatar sx={{ bgcolor: '#0088FE', width: 56, height: 56 }}>
+        <Grid item xs={12} sm={6} md={3} sx={{ 
+          '@media (orientation: landscape) and (max-height: 500px)': { 
+            maxWidth: '50%' 
+          }
+        }}>
+          <Paper sx={{ 
+            p: 2, 
+            textAlign: 'center', 
+            borderRadius: 3, 
+            boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+            '@media (orientation: landscape) and (max-height: 500px)': {
+              display: 'flex',
+              alignItems: 'center',
+              textAlign: 'left',
+              p: 1.5
+            }
+          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              mb: 1,
+              '@media (orientation: landscape) and (max-height: 500px)': {
+                mb: 0,
+                mr: 2,
+                minWidth: 'fit-content'
+              }
+            }}>
+              <Avatar sx={{ 
+                bgcolor: '#0088FE', 
+                width: 56, 
+                height: 56,
+                '@media (orientation: landscape) and (max-height: 500px)': {
+                  width: 40,
+                  height: 40
+                }
+              }}>
                 <PeopleIcon />
               </Avatar>
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-              {systemData.users.total}
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary">
-              Total Users
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-              {systemData.users.students} Students • {systemData.users.lecturers} Lecturers • {systemData.users.admins} Admins
-            </Typography>
+            <Box sx={{
+              '@media (orientation: landscape) and (max-height: 500px)': {
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }
+            }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 'bold',
+                '@media (orientation: landscape) and (max-height: 500px)': {
+                  fontSize: '1.5rem'
+                }
+              }}>
+                {systemData.users.total}
+              </Typography>
+              <Typography variant="subtitle1" color="textSecondary">
+                Total Users
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+                {systemData.users.students} Students • {systemData.users.lecturers} Lecturers • {systemData.users.admins} Admins
+              </Typography>
+            </Box>
           </Paper>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2, textAlign: 'center', borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-              <Avatar sx={{ bgcolor: '#00C49F', width: 56, height: 56 }}>
+        <Grid item xs={12} sm={6} md={3} sx={{ 
+          '@media (orientation: landscape) and (max-height: 500px)': { 
+            maxWidth: '50%' 
+          }
+        }}>
+          <Paper sx={{ 
+            p: 2, 
+            textAlign: 'center', 
+            borderRadius: 3, 
+            boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+            '@media (orientation: landscape) and (max-height: 500px)': {
+              display: 'flex',
+              alignItems: 'center',
+              textAlign: 'left',
+              p: 1.5
+            }
+          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              mb: 1,
+              '@media (orientation: landscape) and (max-height: 500px)': {
+                mb: 0,
+                mr: 2,
+                minWidth: 'fit-content'
+              }
+            }}>
+              <Avatar sx={{ 
+                bgcolor: '#00C49F', 
+                width: 56, 
+                height: 56,
+                '@media (orientation: landscape) and (max-height: 500px)': {
+                  width: 40,
+                  height: 40
+                }
+              }}>
                 <BookIcon />
               </Avatar>
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-              {systemData.courses.total}
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary">
-              Courses
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-              {systemData.courses.active} Active • {systemData.courses.inactive} Inactive
-            </Typography>
+            <Box sx={{
+              '@media (orientation: landscape) and (max-height: 500px)': {
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }
+            }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 'bold',
+                '@media (orientation: landscape) and (max-height: 500px)': {
+                  fontSize: '1.5rem'
+                }
+              }}>
+                {systemData.courses.total}
+              </Typography>
+              <Typography variant="subtitle1" color="textSecondary">
+                Courses
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+                {systemData.courses.active} Active • {systemData.courses.inactive} Inactive
+              </Typography>
+            </Box>
           </Paper>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2, textAlign: 'center', borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-              <Avatar sx={{ bgcolor: '#FFBB28', width: 56, height: 56 }}>
+        <Grid item xs={12} sm={6} md={3} sx={{ 
+          '@media (orientation: landscape) and (max-height: 500px)': { 
+            maxWidth: '50%' 
+          }
+        }}>
+          <Paper sx={{ 
+            p: 2, 
+            textAlign: 'center', 
+            borderRadius: 3, 
+            boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+            '@media (orientation: landscape) and (max-height: 500px)': {
+              display: 'flex',
+              alignItems: 'center',
+              textAlign: 'left',
+              p: 1.5
+            }
+          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              mb: 1,
+              '@media (orientation: landscape) and (max-height: 500px)': {
+                mb: 0,
+                mr: 2,
+                minWidth: 'fit-content'
+              }
+            }}>
+              <Avatar sx={{ 
+                bgcolor: '#FFBB28', 
+                width: 56, 
+                height: 56,
+                '@media (orientation: landscape) and (max-height: 500px)': {
+                  width: 40,
+                  height: 40
+                }
+              }}>
                 <CheckCircleIcon />
               </Avatar>
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-              {systemData.attendance.total}
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary">
-              Attendance Records
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-              {systemData.attendance.today} Today • {systemData.attendance.present} Present • {systemData.attendance.absent} Absent
-            </Typography>
+            <Box sx={{
+              '@media (orientation: landscape) and (max-height: 500px)': {
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }
+            }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 'bold',
+                '@media (orientation: landscape) and (max-height: 500px)': {
+                  fontSize: '1.5rem'
+                }
+              }}>
+                {systemData.attendance.total}
+              </Typography>
+              <Typography variant="subtitle1" color="textSecondary">
+                Attendance Records
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+                {systemData.attendance.today} Today • {systemData.attendance.present} Present • {systemData.attendance.absent} Absent
+              </Typography>
+            </Box>
           </Paper>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2, textAlign: 'center', borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-              <Avatar sx={{ bgcolor: '#FF8042', width: 56, height: 56 }}>
+        <Grid item xs={12} sm={6} md={3} sx={{ 
+          '@media (orientation: landscape) and (max-height: 500px)': { 
+            maxWidth: '50%' 
+          }
+        }}>
+          <Paper sx={{ 
+            p: 2, 
+            textAlign: 'center', 
+            borderRadius: 3, 
+            boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+            '@media (orientation: landscape) and (max-height: 500px)': {
+              display: 'flex',
+              alignItems: 'center',
+              textAlign: 'left',
+              p: 1.5
+            }
+          }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              mb: 1,
+              '@media (orientation: landscape) and (max-height: 500px)': {
+                mb: 0,
+                mr: 2,
+                minWidth: 'fit-content'
+              }
+            }}>
+              <Avatar sx={{ 
+                bgcolor: '#FF8042', 
+                width: 56, 
+                height: 56,
+                '@media (orientation: landscape) and (max-height: 500px)': {
+                  width: 40,
+                  height: 40
+                }
+              }}>
                 <BusinessIcon />
               </Avatar>
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-              {systemData.faculties.total}
-            </Typography>
-            <Typography variant="subtitle1" color="textSecondary">
-              Faculties
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-              {systemData.departments.total} Departments • {systemData.programs.total} Programs
-            </Typography>
+            <Box sx={{
+              '@media (orientation: landscape) and (max-height: 500px)': {
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center'
+              }
+            }}>
+              <Typography variant="h4" sx={{ 
+                fontWeight: 'bold',
+                '@media (orientation: landscape) and (max-height: 500px)': {
+                  fontSize: '1.5rem'
+                }
+              }}>
+                {systemData.faculties.total}
+              </Typography>
+              <Typography variant="subtitle1" color="textSecondary">
+                Faculties
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+                {systemData.departments.total} Departments • {systemData.programs.total} Programs
+              </Typography>
+            </Box>
           </Paper>
         </Grid>
       </Grid>
@@ -286,8 +466,21 @@ const SystemOverview = ({ stats }) => {
       {/* Charts and Data Visualization */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {/* User Distribution */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: { xs: 250, sm: 300 }, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <Grid item xs={12} md={4} sx={{ 
+          '@media (orientation: landscape) and (max-height: 600px)': { 
+            maxWidth: '33.33%' 
+          }
+        }}>
+          <Paper sx={{ 
+            p: 2, 
+            height: { xs: 250, sm: 300 },
+            borderRadius: 3, 
+            boxShadow: '0 4px 15px rgba(0,0,0,0.1)', 
+            overflow: 'hidden',
+            '@media (orientation: landscape) and (max-height: 600px)': {
+              height: 200
+            }
+          }}>
             <Typography variant="h6" gutterBottom>User Distribution</Typography>
             <ResponsiveContainer width="100%" height="85%">
               <PieChart>
@@ -312,8 +505,21 @@ const SystemOverview = ({ stats }) => {
         </Grid>
 
         {/* Attendance Trends */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2, height: { xs: 250, sm: 300 }, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <Grid item xs={12} md={8} sx={{ 
+          '@media (orientation: landscape) and (max-height: 600px)': { 
+            maxWidth: '66.66%' 
+          }
+        }}>
+          <Paper sx={{ 
+            p: 2, 
+            height: { xs: 250, sm: 300 },
+            borderRadius: 3, 
+            boxShadow: '0 4px 15px rgba(0,0,0,0.1)', 
+            overflow: 'hidden',
+            '@media (orientation: landscape) and (max-height: 600px)': {
+              height: 200
+            }
+          }}>
             <Typography variant="h6" gutterBottom>Weekly Attendance Trends</Typography>
             <ResponsiveContainer width="100%" height="85%">
               <BarChart
@@ -334,7 +540,11 @@ const SystemOverview = ({ stats }) => {
       </Grid>
 
       {/* Recent Activities and Quick Links */}
-      <Grid container spacing={3}>
+      <Grid container spacing={3} sx={{ 
+        '@media (orientation: landscape) and (max-height: 600px)': { 
+          maxWidth: '66.66%' 
+        }
+      }}>
         {/* Program-Course Management Section - NEW FEATURE */}
         <Grid item xs={12} sx={{ mb: 3 }}>
           <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
@@ -463,7 +673,11 @@ const SystemOverview = ({ stats }) => {
         </Grid>
         
         {/* Recent Attendance Sessions */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={6} sx={{ 
+          '@media (orientation: landscape) and (max-height: 600px)': { 
+            maxWidth: '50%' 
+          }
+        }}>
           <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
             <Typography variant="h6" gutterBottom>Recent Attendance Sessions</Typography>
             {systemData.recentSessions.length > 0 ? (
@@ -499,7 +713,11 @@ const SystemOverview = ({ stats }) => {
         </Grid>
 
         {/* Quick Access */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={6} sx={{ 
+          '@media (orientation: landscape) and (max-height: 600px)': { 
+            maxWidth: '50%' 
+          }
+        }}>
           <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
             <Typography variant="h6" gutterBottom>Quick Access</Typography>
             <Grid container spacing={2}>

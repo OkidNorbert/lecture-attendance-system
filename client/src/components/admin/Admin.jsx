@@ -107,7 +107,14 @@ const Admin = () => {
   );
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ 
+      display: 'flex',
+      '@media (orientation: landscape) and (max-height: 600px)': {
+        flexDirection: 'row',
+        minHeight: '100vh',
+        height: 'auto'
+      } 
+    }}>
       <CssBaseline />
       <AppBar
         position="fixed"
@@ -133,7 +140,16 @@ const Admin = () => {
       </AppBar>
       <Box
         component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+        sx={{ 
+          width: { sm: drawerWidth }, 
+          flexShrink: { sm: 0 },
+          '@media (orientation: landscape) and (max-height: 600px)': {
+            position: 'sticky',
+            top: 0,
+            height: '100vh',
+            overflowY: 'auto'
+          }
+        }}
       >
         <Drawer
           variant="temporary"
@@ -144,7 +160,15 @@ const Admin = () => {
           }}
           sx={{
             display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': { 
+              boxSizing: 'border-box', 
+              width: drawerWidth,
+              '@media (orientation: landscape) and (max-height: 600px)': {
+                position: 'absolute',
+                height: '100vh',
+                overflowY: 'auto'
+              }
+            },
           }}
         >
           {drawer}
@@ -153,7 +177,15 @@ const Admin = () => {
           variant="permanent"
           sx={{
             display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': { 
+              boxSizing: 'border-box', 
+              width: drawerWidth,
+              '@media (orientation: landscape) and (max-height: 600px)': {
+                position: 'relative',
+                height: '100vh',
+                overflowY: 'auto'
+              }
+            },
           }}
           open
         >
@@ -166,7 +198,12 @@ const Admin = () => {
           flexGrow: 1,
           p: 3,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
-          mt: 8
+          mt: 8,
+          '@media (orientation: landscape) and (max-height: 600px)': {
+            mt: 4,
+            p: 2,
+            overflowY: 'auto'
+          }
         }}
       >
         <Container maxWidth="lg">

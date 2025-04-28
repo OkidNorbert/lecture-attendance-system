@@ -60,6 +60,14 @@ const DashboardContainer = styled(Box)(({ theme }) => ({
   height: '100vh',
   overflow: 'hidden',
   backgroundColor: '#f5f7fb',
+  [theme.breakpoints.down('sm')]: {
+    flexDirection: 'column', // Stack elements vertically on very small screens
+  },
+  '@media (orientation: landscape) and (max-height: 600px)': {
+    flexDirection: 'row', // Force row layout in landscape orientation on small height
+    height: 'auto',
+    minHeight: '100vh',
+  }
 }));
 
 const Sidebar = styled(Box)(({ theme }) => ({
@@ -68,6 +76,7 @@ const Sidebar = styled(Box)(({ theme }) => ({
   backgroundColor: 'white',
   boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
   zIndex: theme.zIndex.drawer,
+  overflowY: 'auto', // Allow scrolling within sidebar
   [theme.breakpoints.down('md')]: {
     width: 0,
     position: 'fixed',
@@ -84,6 +93,29 @@ const Sidebar = styled(Box)(({ theme }) => ({
       }),
     },
   },
+  [theme.breakpoints.down('sm')]: {
+    width: '100%',
+    height: 'auto',
+    maxHeight: '50vh',
+    position: 'relative',
+    '&.open': {
+      width: '100%',
+      maxHeight: '60vh',
+    },
+  },
+  '@media (orientation: landscape) and (max-height: 600px)': {
+    maxWidth: 280,
+    maxHeight: 'none',
+    height: 'auto',
+    minHeight: '100vh',
+    overflowY: 'auto',
+    position: 'sticky',
+    top: 0,
+    '&.open': {
+      width: 280,
+      maxHeight: 'none',
+    }
+  }
 }));
 
 const ContentArea = styled(Box)(({ theme }) => ({
@@ -91,12 +123,20 @@ const ContentArea = styled(Box)(({ theme }) => ({
   overflow: 'auto',
   padding: theme.spacing(3),
   backgroundColor: '#f5f7fb',
+  height: '100vh',
   [theme.breakpoints.down('md')]: {
     padding: theme.spacing(2),
   },
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(1),
+    height: 'auto',
+    minHeight: '50vh',
   },
+  '@media (orientation: landscape) and (max-height: 600px)': {
+    height: 'auto',
+    minHeight: '100vh',
+    padding: theme.spacing(1, 2),
+  }
 }));
 
 const AdminDashboard = () => {
@@ -242,20 +282,29 @@ const AdminDashboard = () => {
     <DashboardContainer>
       {/* Mobile App Bar */}
       {isMobile && (
-        <AppBar position="fixed" sx={{ width: '100%', zIndex: (theme) => theme.zIndex.drawer + 2 }}>
-          <Toolbar>
+        <AppBar position="fixed" sx={{ 
+          width: '100%', 
+          zIndex: (theme) => theme.zIndex.drawer + 2 
+        }}>
+          <Toolbar sx={{ justifyContent: 'space-between' }}>
             <IconButton
               color="inherit"
               aria-label="open drawer"
               edge="start"
               onClick={handleDrawerToggle}
-              sx={{ mr: 2 }}
             >
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" noWrap>
+            <Typography variant="h6" noWrap component="div">
               Admin Dashboard
             </Typography>
+            <IconButton
+              color="inherit"
+              aria-label="refresh data"
+              onClick={handleRefreshStats}
+            >
+              <RefreshIcon />
+            </IconButton>
           </Toolbar>
         </AppBar>
       )}
@@ -559,21 +608,24 @@ const AdminDashboard = () => {
       {/* Content Area */}
       <ContentArea>
         {isMobile && (
-          <Box sx={{ height: (theme) => theme.mixins.toolbar.minHeight }} />
+          <Box sx={{ 
+            height: (theme) => theme.mixins.toolbar.minHeight,
+            mb: 2 
+          }} />
         )}
         <Paper 
           elevation={0} 
           sx={{ 
-            p: { xs: 2, sm: 3 }, 
+            p: { xs: 1.5, sm: 2, md: 3 }, 
             borderRadius: 2, 
             bgcolor: 'white',
             boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
-            minHeight: '85vh',
-            overflow: 'hidden'
+            minHeight: { xs: '70vh', sm: '75vh', md: '85vh' },
+            overflow: 'auto'
           }}
         >
           {tabItems[activeTab].component}
-      </Paper>
+        </Paper>
       </ContentArea>
     </DashboardContainer>
   );
