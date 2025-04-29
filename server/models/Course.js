@@ -38,10 +38,11 @@ const CourseSchema = new mongoose.Schema({
     required: [true, 'Semester is required'],
     trim: true
   },
-  academicYear: {
-    type: String,
-    required: [true, 'Academic year is required'],
-    trim: true
+  programYear: {
+    type: Number,
+    required: [true, 'Program year is required'],
+    min: [1, 'Program year must be at least 1'],
+    max: [6, 'Program year cannot exceed 6']
   },
   status: {
     type: String,

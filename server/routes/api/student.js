@@ -36,7 +36,7 @@ router.post(
     isStudent,
     [
       body("semester", "Semester is required").not().isEmpty(),
-      body("academicYear", "Academic year is required").not().isEmpty(),
+      body("programYear", "Program year is required").not().isEmpty(),
     ],
   ],
   async (req, res) => {
@@ -45,7 +45,7 @@ router.post(
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { semester, academicYear } = req.body;
+    const { semester, programYear } = req.body;
 
     try {
       // Start a transaction
@@ -54,8 +54,8 @@ router.post(
       // 1. First check if student is already enrolled in this semester/year
       const existingEnrollment = await db.query(
         `SELECT * FROM student_enrollments 
-         WHERE student_id = $1 AND semester = $2 AND academic_year = $3`,
-        [req.user.id, semester, academicYear]
+         WHERE student_id = $1 AND semester = $2 AND program_year = $3`,
+        [req.user.id, semester, programYear]
       );
 
       if (existingEnrollment.rows.length > 0) {
@@ -83,10 +83,10 @@ router.post(
       // 3. Create enrollment entry
       const enrollmentResult = await db.query(
         `INSERT INTO student_enrollments (
-          student_id, program_id, semester, academic_year, enrollment_date, status
+          student_id, program_id, semester, program_year, enrollment_date, status
         ) VALUES ($1, $2, $3, $4, NOW(), 'active')
         RETURNING id`,
-        [req.user.id, programId, semester, academicYear]
+        [req.user.id, programId, semester, programYear]
       );
 
       const enrollmentId = enrollmentResult.rows[0].id;
@@ -94,8 +94,8 @@ router.post(
       // 4. Get courses for this program in this semester/year
       const programCourses = await db.query(
         `SELECT id FROM courses 
-         WHERE program_id = $1 AND semester = $2 AND academic_year = $3`,
-        [programId, semester, academicYear]
+         WHERE program_id = $1 AND semester = $2 AND program_year = $3`,
+        [programId, semester, programYear]
       );
 
       // 5. Enroll student in all courses for this program/semester/year

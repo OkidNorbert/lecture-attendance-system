@@ -472,13 +472,13 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
       description,
       credits,
       semester,
-      academicYear,
+      programYear,
       status
     } = req.body;
 
     // Validate required fields
-    if (!name || !code || !programId || !credits || !semester || !academicYear) {
-      console.log('Missing fields:', { name, code, programId, credits, semester, academicYear });
+    if (!name || !code || !programId || !credits || !semester || !programYear) {
+      console.log('Missing fields:', { name, code, programId, credits, semester, programYear });
       return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
@@ -496,7 +496,7 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
       description: description?.trim() || '',
       credits: Number(credits),
       semester,
-      academicYear,
+      programYear: Number(programYear),
       status: status || 'active'
     });
 
@@ -519,7 +519,7 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
       description: course.description,
       credits: course.credits,
       semester: course.semester,
-      academicYear: course.academicYear,
+      programYear: course.programYear,
       status: course.status
     };
 
@@ -1520,13 +1520,13 @@ router.post('/courses', protect, async (req, res) => {
       description,
       credits,
       semester,
-      academicYear,
+      programYear,
       status
     } = req.body;
 
     // Validate required fields
-    if (!name || !code || !programId || !credits || !semester || !academicYear) {
-      console.log('Missing fields:', { name, code, programId, credits, semester, academicYear });
+    if (!name || !code || !programId || !credits || !semester || !programYear) {
+      console.log('Missing fields:', { name, code, programId, credits, semester, programYear });
       return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
@@ -1544,7 +1544,7 @@ router.post('/courses', protect, async (req, res) => {
       description: description?.trim() || '',
       credits: Number(credits),
       semester,
-      academicYear,
+      programYear: Number(programYear),
       status: status || 'active'
     });
 
@@ -1567,7 +1567,7 @@ router.post('/courses', protect, async (req, res) => {
       description: course.description,
       credits: course.credits,
       semester: course.semester,
-      academicYear: course.academicYear,
+      programYear: course.programYear,
       status: course.status
     };
 
@@ -2079,7 +2079,7 @@ router.put("/courses/:id", protect, adminMiddleware, async (req, res) => {
       description,
       credits,
       semester,
-      academicYear,
+      programYear,
       status
     } = req.body;
 

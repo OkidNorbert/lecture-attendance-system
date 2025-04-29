@@ -22,7 +22,7 @@ const Dashboard = () => {
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
   const [enrollmentForm, setEnrollmentForm] = useState({
     semester: '',
-    academicYear: '',
+    programYear: '',
     isLoading: false,
     error: null,
     success: null
@@ -68,10 +68,7 @@ const Dashboard = () => {
             
             // Determine available next semesters
             const currentSemester = parseInt(latestEnrollment.semester);
-            const currentYear = latestEnrollment.academicYear;
-            
-            // Parse the academic year (format: "2023-2024")
-            const [startYear, endYear] = currentYear.split('-').map(year => parseInt(year));
+            const currentYear = latestEnrollment.programYear;
             
             // Generate next possible semester options
             const nextOptions = [];
@@ -80,22 +77,22 @@ const Dashboard = () => {
               // Can enroll in next semester of same year
               nextOptions.push({
                 semester: (currentSemester + 1).toString(),
-                academicYear: currentYear,
-                label: `Semester ${currentSemester + 1} (${currentYear})`
+                programYear: currentYear,
+                label: `Semester ${currentSemester + 1} (Year ${currentYear})`
               });
             } else {
               // Need to go to next year
-              const nextAcademicYear = `${startYear + 1}-${endYear + 1}`;
+              const nextProgramYear = currentYear + 1;
               nextOptions.push({
                 semester: "1",
-                academicYear: nextAcademicYear,
-                label: `Semester 1 (${nextAcademicYear})`
+                programYear: nextProgramYear,
+                label: `Semester 1 (Year ${nextProgramYear})`
               });
             }
             
             setEnrollmentData({
               currentSemester: latestEnrollment.semester,
-              currentYear: latestEnrollment.academicYear,
+              currentYear: latestEnrollment.programYear,
               enrollments: sortedEnrollments,
               availableSemesters: nextOptions,
               isEnrollmentOpen: true // You can control this with API data if needed
@@ -188,7 +185,7 @@ const Dashboard = () => {
       setEnrollmentForm({
         ...enrollmentForm,
         semester: nextOption.semester,
-        academicYear: nextOption.academicYear
+        programYear: nextOption.programYear
       });
     }
     setShowEnrollmentModal(true);
@@ -215,7 +212,7 @@ const Dashboard = () => {
       // Submit enrollment request
       const response = await axios.post("/api/student/enroll", {
         semester: enrollmentForm.semester,
-        academicYear: enrollmentForm.academicYear
+        programYear: enrollmentForm.programYear
       });
 
       // Handle success
@@ -375,7 +372,7 @@ const Dashboard = () => {
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
                   <span className="text-blue-700 text-xl">📅</span>
                 </div>
-                <h3 className="font-semibold text-blue-900">Academic Year</h3>
+                <h3 className="font-semibold text-blue-900">Program Year</h3>
               </div>
               <p className="text-2xl font-bold text-blue-800">
                 {enrollmentData.currentYear || 'Not enrolled'}
@@ -557,11 +554,11 @@ const Dashboard = () => {
                         id={`option-${index}`}
                         name="enrollmentOption"
                         className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
-                        checked={enrollmentForm.semester === option.semester && enrollmentForm.academicYear === option.academicYear}
+                        checked={enrollmentForm.semester === option.semester && enrollmentForm.programYear === option.programYear}
                         onChange={() => setEnrollmentForm({
                           ...enrollmentForm,
                           semester: option.semester,
-                          academicYear: option.academicYear
+                          programYear: option.programYear
                         })}
                       />
                       <label htmlFor={`option-${index}`} className="ml-3 block text-sm font-medium text-gray-700">

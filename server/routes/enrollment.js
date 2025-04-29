@@ -11,7 +11,7 @@ const { protect, authorize } = require('../middleware/auth');
 // @access  Private (Admin, Lecturer)
 router.post('/', protect, authorize(['admin', 'lecturer']), async (req, res) => {
   try {
-    const { studentId, courseId, lecturerId, programId, semester, academicYear } = req.body;
+    const { studentId, courseId, lecturerId, programId, semester, programYear } = req.body;
 
     // Validate student exists and is a student
     const student = await User.findById(studentId);
@@ -42,7 +42,7 @@ router.post('/', protect, authorize(['admin', 'lecturer']), async (req, res) => 
       studentId,
       courseId,
       semester,
-      academicYear
+      programYear
     });
 
     if (existingEnrollment) {
@@ -55,7 +55,8 @@ router.post('/', protect, authorize(['admin', 'lecturer']), async (req, res) => 
       lecturerId,
       programId,
       semester,
-      academicYear
+      programYear,
+      status: "enrolled"
     });
 
     await enrollment.save();
@@ -71,7 +72,7 @@ router.post('/', protect, authorize(['admin', 'lecturer']), async (req, res) => 
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
-    const { studentId, courseId, lecturerId, programId, semester, academicYear } = req.query;
+    const { studentId, courseId, lecturerId, programId, semester, programYear } = req.query;
     const query = {};
 
     if (studentId) query.studentId = studentId;
@@ -79,7 +80,7 @@ router.get('/', protect, async (req, res) => {
     if (lecturerId) query.lecturerId = lecturerId;
     if (programId) query.programId = programId;
     if (semester) query.semester = semester;
-    if (academicYear) query.academicYear = academicYear;
+    if (programYear) query.programYear = programYear;
 
     const enrollments = await Enrollment.find(query)
       .populate('studentId', 'first_name last_name email student_id')
@@ -92,7 +93,7 @@ router.get('/', protect, async (req, res) => {
       _id: enrollment._id,
       status: enrollment.status,
       semester: enrollment.semester,
-      academicYear: enrollment.academicYear,
+      programYear: enrollment.programYear,
       enrollmentDate: enrollment.enrollmentDate,
       studentId: enrollment.studentId?._id || null,
       courseId: enrollment.courseId?._id || null,

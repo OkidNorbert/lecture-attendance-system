@@ -56,7 +56,7 @@ const CourseManagement = () => {
     description: '',
     credits: '',
     semester: '',
-    academicYear: '',
+    programYear: '',
     status: 'active'
   });
   const [validationErrors, setValidationErrors] = useState({});
@@ -138,7 +138,7 @@ const CourseManagement = () => {
     if (!formData.programId) errors.programId = 'Program is required';
     if (!formData.credits) errors.credits = 'Credits are required';
     if (!formData.semester) errors.semester = 'Semester is required';
-    if (!formData.academicYear) errors.academicYear = 'Academic Year is required';
+    if (!formData.programYear) errors.programYear = 'Program Year is required';
 
     // Check if there are any validation errors
     if (Object.keys(errors).length > 0) {
@@ -158,7 +158,7 @@ const CourseManagement = () => {
         description: formData.description?.trim() || '',
         credits: Number(formData.credits),
         semester: formData.semester,
-        academicYear: formData.academicYear,
+        programYear: Number(formData.programYear),
         status: formData.status || 'active'
       };
 
@@ -202,7 +202,7 @@ const CourseManagement = () => {
         description: formData.description?.trim() || '',
         credits: Number(formData.credits),
         semester: formData.semester,
-        academicYear: formData.academicYear,
+        programYear: Number(formData.programYear),
         status: formData.status || 'active'
       };
       
@@ -255,7 +255,7 @@ const CourseManagement = () => {
       description: '',
       credits: '',
       semester: '',
-      academicYear: '',
+      programYear: '',
       status: 'active'
     });
   };
@@ -271,7 +271,7 @@ const CourseManagement = () => {
       description: course.description || '',
       credits: course.credits,
       semester: course.semester || '',
-      academicYear: course.academicYear || '',
+      programYear: course.programYear || '',
       status: course.status
     });
     setOpenDialog(true);
@@ -428,16 +428,17 @@ const CourseManagement = () => {
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
-                    label="Academic Year"
-                    placeholder="e.g., 2023-2024"
-                    value={formData.academicYear}
+                    label="Program Year"
+                    type="number"
+                    value={formData.programYear}
                     onChange={(e) => {
-                      setFormData({ ...formData, academicYear: e.target.value });
-                      setValidationErrors({ ...validationErrors, academicYear: '' });
+                      setFormData({ ...formData, programYear: e.target.value });
+                      setValidationErrors({ ...validationErrors, programYear: '' });
                     }}
                     required
-                    error={!!validationErrors.academicYear}
-                    helperText={validationErrors.academicYear || "Enter academic year (e.g., 2023-2024)"}
+                    error={!!validationErrors.programYear}
+                    helperText={validationErrors.programYear || "Enter program year (1-6)"}
+                    inputProps={{ min: 1, max: 6 }}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -551,7 +552,7 @@ const CourseManagement = () => {
                             Semester: {course.semester || 'Not specified'}
                           </Typography>
                           <Typography variant="body2">
-                            Academic Year: {course.academicYear || 'Not specified'}
+                            Program Year: {course.programYear || 'Not specified'}
                           </Typography>
                           <Typography variant="body2">
                             Status: {course.status}
@@ -676,12 +677,17 @@ const CourseManagement = () => {
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
-                  label="Academic Year"
-                  placeholder="e.g., 2023-2024"
-                  value={formData.academicYear}
-                  onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
+                  label="Program Year"
+                  type="number"
+                  value={formData.programYear}
+                  onChange={(e) => {
+                    setFormData({ ...formData, programYear: e.target.value });
+                    setValidationErrors({ ...validationErrors, programYear: '' });
+                  }}
                   required
-                  fullWidth
+                  error={!!validationErrors.programYear}
+                  helperText={validationErrors.programYear || "Enter program year (1-6)"}
+                  inputProps={{ min: 1, max: 6 }}
                 />
               </Grid>
               <Grid item xs={12}>

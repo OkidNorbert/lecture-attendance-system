@@ -31,7 +31,8 @@ const EnrollmentManagement = () => {
     lecturerId: '',
     programId: '',
     semester: '',
-    academicYear: ''
+    programYear: 1,
+    status: 'enrolled'
   });
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -113,7 +114,8 @@ const EnrollmentManagement = () => {
         lecturerId: '',
         programId: '',
         semester: '',
-        academicYear: ''
+        programYear: 1,
+        status: 'enrolled'
       });
       fetchEnrollments();
     } catch (err) {
@@ -249,12 +251,14 @@ const EnrollmentManagement = () => {
             />
 
             <TextField
-              name="academicYear"
-              label="Academic Year"
-              value={formData.academicYear}
+              name="programYear"
+              label="Program Year"
+              type="number"
+              value={formData.programYear}
               onChange={handleChange}
               required
               fullWidth
+              inputProps={{ min: 1, max: 6 }}
             />
           </Box>
 
@@ -283,7 +287,7 @@ const EnrollmentManagement = () => {
                 <TableCell>Lecturer</TableCell>
                 <TableCell>Program</TableCell>
                 <TableCell>Semester</TableCell>
-                <TableCell>Academic Year</TableCell>
+                <TableCell>Program Year</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
@@ -298,7 +302,7 @@ const EnrollmentManagement = () => {
                   <TableCell>{enrollment.lecturer?.name}</TableCell>
                   <TableCell>{enrollment.program?.name}</TableCell>
                   <TableCell>{enrollment.semester}</TableCell>
-                  <TableCell>{enrollment.academicYear}</TableCell>
+                  <TableCell>{enrollment.programYear}</TableCell>
                   <TableCell>
                     <Select
                       value={enrollment.status}

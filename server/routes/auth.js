@@ -27,9 +27,9 @@ router.post("/register", async (req, res) => {
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: "User already registered" });
 
-    // Generate current academic year (e.g., "2023-2024")
+    // Generate current year
     const currentYear = new Date().getFullYear();
-    const academicYear = `${currentYear}-${currentYear + 1}`;
+    const programYear = 1; // Default to first year for new students
     const semesterToUse = semester || "Current";
 
     // Hash Password
@@ -99,7 +99,7 @@ router.post("/register", async (req, res) => {
           lecturerId,
           programId: program_id,
           semester: semesterToUse,
-          academicYear,
+          programYear,
           status: 'enrolled'
         });
         

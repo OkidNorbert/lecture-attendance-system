@@ -58,7 +58,7 @@ const UserManagement = () => {
     program: '',
     courses: [],
     semester: '',
-    academicYear: ''
+    programYear: 1
   });
   const [editingUser, setEditingUser] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
@@ -181,9 +181,25 @@ const UserManagement = () => {
         name: `${formData.first_name} ${formData.last_name}`
       };
 
+      // Add role-specific fields
+      if (formData.role === 'lecturer') {
+        userData.department = formData.department;
+      } else if (formData.role === 'student') {
+        userData.program_id = formData.program;
+      }
+      
+      // Include other fields that might be used
+      if (formData.password) {
+        userData.password = formData.password;
+      }
+
       // Create user
+      const endpoint = formData.role === 'lecturer' 
+        ? 'http://localhost:5000/api/admin/register-lecturer'
+        : 'http://localhost:5000/api/admin/register-student';
+        
       const userResponse = await axios.post(
-        'http://localhost:5000/api/admin/users',
+        endpoint,
         userData,
         {
           headers: {
@@ -247,7 +263,7 @@ const UserManagement = () => {
               lecturerId,
               programId: formData.program,
               semester: formData.semester,
-              academicYear: formData.academicYear
+              programYear: formData.programYear
             },
             {
               headers: {
@@ -314,7 +330,7 @@ const UserManagement = () => {
         program: '',
         courses: [],
         semester: '',
-        academicYear: ''
+        programYear: 1
       });
       setError('');
       
@@ -395,7 +411,7 @@ const UserManagement = () => {
       program: user.program_id || user.program || '',
       courses: user.courses?.map(course => (typeof course === 'object' ? course._id : course)) || [],
       semester: user.semester || '',
-      academicYear: user.academicYear || ''
+      programYear: user.programYear || 1
     };
     
     setFormData(initialFormData);
@@ -419,7 +435,7 @@ const UserManagement = () => {
       program: '',
       courses: [],
       semester: '',
-      academicYear: ''
+      programYear: 1
     });
     setEditingUser(null);
   };
@@ -562,6 +578,10 @@ const UserManagement = () => {
             <TableCell>Name</TableCell>
             <TableCell>Email</TableCell>
             <TableCell>Role</TableCell>
+            <TableCell>Program</TableCell>
+            <TableCell>Semester</TableCell>
+            <TableCell>Program Year</TableCell>
+            <TableCell>Status</TableCell>
             <TableCell align="right">Actions</TableCell>
           </TableRow>
         </TableHead>
@@ -579,6 +599,16 @@ const UserManagement = () => {
                   label={user.role.charAt(0).toUpperCase() + user.role.slice(1)} 
                   color={getRoleColor(user.role)} 
                   size="small" 
+                />
+              </TableCell>
+              <TableCell>{user.program?.name}</TableCell>
+              <TableCell>{user.semester}</TableCell>
+              <TableCell>{user.programYear}</TableCell>
+              <TableCell>
+                <Chip 
+                  label={user.status} 
+                  size="small"
+                  color={user.status === 'enrolled' ? 'success' : 'default'}
                 />
               </TableCell>
               <TableCell align="right">
@@ -760,7 +790,7 @@ const UserManagement = () => {
                       {isStudent && <TableCell>Lecturer</TableCell>}
                       {!isStudent && <TableCell>Student</TableCell>}
                       <TableCell>Semester</TableCell>
-                      <TableCell>Academic Year</TableCell>
+                      <TableCell>Program Year</TableCell>
                       <TableCell>Status</TableCell>
                     </TableRow>
                   </TableHead>
@@ -776,7 +806,7 @@ const UserManagement = () => {
                           <TableCell>{enrollment.student?.first_name} {enrollment.student?.last_name || 'Unknown Student'}</TableCell>
                         )}
                         <TableCell>{enrollment.semester}</TableCell>
-                        <TableCell>{enrollment.academicYear}</TableCell>
+                        <TableCell>{enrollment.programYear}</TableCell>
                         <TableCell>
                           <Chip 
                             label={enrollment.status} 
@@ -962,22 +992,35 @@ const UserManagement = () => {
                   )}
                   
                   <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Semester"
-                      value={formData.semester}
-                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                      required
-                    />
+                    <FormControl fullWidth required>
+                      <InputLabel>Semester</InputLabel>
+                      <Select
+                        value={formData.semester}
+                        label="Semester"
+                        onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                      >
+                        <MenuItem value="1">Semester 1</MenuItem>
+                        <MenuItem value="2">Semester 2</MenuItem>
+                        <MenuItem value="3">Semester 3</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Academic Year"
-                      value={formData.academicYear}
-                      onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
-                      required
-                    />
+                    <FormControl fullWidth sx={{ mb: 2 }}>
+                      <InputLabel>Program Year</InputLabel>
+                      <Select
+                        value={formData.programYear}
+                        label="Program Year"
+                        onChange={(e) => setFormData({ ...formData, programYear: e.target.value })}
+                      >
+                        <MenuItem value={1}>Year 1</MenuItem>
+                        <MenuItem value={2}>Year 2</MenuItem>
+                        <MenuItem value={3}>Year 3</MenuItem>
+                        <MenuItem value={4}>Year 4</MenuItem>
+                        <MenuItem value={5}>Year 5</MenuItem>
+                        <MenuItem value={6}>Year 6</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Grid>
                 </>
               )}
@@ -1166,22 +1209,35 @@ const UserManagement = () => {
                 )}
                 
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Semester"
-                    value={formData.semester}
-                    onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                    required
-                  />
+                  <FormControl fullWidth required>
+                    <InputLabel>Semester</InputLabel>
+                    <Select
+                      value={formData.semester}
+                      label="Semester"
+                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                    >
+                      <MenuItem value="1">Semester 1</MenuItem>
+                      <MenuItem value="2">Semester 2</MenuItem>
+                      <MenuItem value="3">Semester 3</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Academic Year"
-                    value={formData.academicYear}
-                    onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
-                    required
-                  />
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Program Year</InputLabel>
+                    <Select
+                      value={formData.programYear}
+                      label="Program Year"
+                      onChange={(e) => setFormData({ ...formData, programYear: e.target.value })}
+                    >
+                      <MenuItem value={1}>Year 1</MenuItem>
+                      <MenuItem value={2}>Year 2</MenuItem>
+                      <MenuItem value={3}>Year 3</MenuItem>
+                      <MenuItem value={4}>Year 4</MenuItem>
+                      <MenuItem value={5}>Year 5</MenuItem>
+                      <MenuItem value={6}>Year 6</MenuItem>
+                    </Select>
+                  </FormControl>
                 </Grid>
               </>
             )}

@@ -99,12 +99,6 @@ const sendWelcomeEmail = async (userEmail, tempPassword, name, role) => {
         'X-Auto-Response-Suppress': 'OOF, AutoReply',
         'List-Unsubscribe': `<mailto:${process.env.EMAIL_USER}?subject=unsubscribe>`,
         'Feedback-ID': 'welcome-email:lecture-attendance-system'
-      },
-      // Additional DKIM settings if configured
-      dkim: {
-        domainName: process.env.EMAIL_DOMAIN,
-        keySelector: 'default',
-        privateKey: process.env.DKIM_PRIVATE_KEY
       }
     };
 
