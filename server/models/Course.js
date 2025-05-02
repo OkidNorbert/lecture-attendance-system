@@ -69,8 +69,21 @@ CourseSchema.index({ course_code: 1 }, { unique: true });
 
 // Pre-save middleware
 CourseSchema.pre('save', function(next) {
-  this.course_code = this.course_code.toUpperCase();
+  // Ensure course_code is never null or empty
+  if (!this.course_code) {
+    return next(new Error('Course code is required'));
+  }
+  
+  this.course_code = this.course_code.trim().toUpperCase();
   next();
+});
+
+// Additional validation check
+CourseSchema.path('course_code').validate(function(value) {
+  if (!value || value.trim() === '') {
+    throw new Error('Course code cannot be empty');
+  }
+  return true;
 });
 
 // Virtual for getting the department and faculty through program

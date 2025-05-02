@@ -41,6 +41,7 @@ const CourseManagement = () => {
   const [faculties, setFaculties] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [programs, setPrograms] = useState([]);
+  const [filteredPrograms, setFilteredPrograms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -64,6 +65,28 @@ const CourseManagement = () => {
   useEffect(() => {
     fetchInitialData();
   }, []);
+
+  useEffect(() => {
+    // Filter programs based on selected faculty and department
+    if (formData.facultyId && formData.departmentId) {
+      const filtered = programs.filter(program => 
+        program.facultyId && program.departmentId && 
+        program.facultyId._id === formData.facultyId && 
+        program.departmentId._id === formData.departmentId
+      );
+      setFilteredPrograms(filtered);
+      
+      // Reset programId if the current one doesn't match the filters
+      if (formData.programId) {
+        const programExists = filtered.some(p => p._id === formData.programId);
+        if (!programExists) {
+          setFormData(prev => ({ ...prev, programId: '' }));
+        }
+      }
+    } else {
+      setFilteredPrograms(programs);
+    }
+  }, [formData.facultyId, formData.departmentId, programs]);
 
   const fetchInitialData = async () => {
     try {
@@ -132,9 +155,7 @@ const CourseManagement = () => {
     // Validate all required fields
     const errors = {};
     if (!formData.name.trim()) errors.name = 'Course name is required';
-    if (!formData.code.trim()) errors.code = 'Course code is required';
-    if (!formData.facultyId) errors.facultyId = 'Faculty is required';
-    if (!formData.departmentId) errors.departmentId = 'Department is required';
+    if (!formData.code || formData.code.trim() === '') errors.code = 'Course code is required';
     if (!formData.programId) errors.programId = 'Program is required';
     if (!formData.credits) errors.credits = 'Credits are required';
     if (!formData.semester) errors.semester = 'Semester is required';
@@ -149,11 +170,18 @@ const CourseManagement = () => {
     }
 
     try {
+      // Ensure the code field is not empty (extra validation)
+      const courseCode = formData.code ? formData.code.trim() : '';
+      if (courseCode === '') {
+        setValidationErrors({ ...validationErrors, code: 'Course code is required' });
+        setError('Course code cannot be empty');
+        setLoading(false);
+        return;
+      }
+
       const courseData = {
         name: formData.name.trim(),
-        code: formData.code.toUpperCase().trim(),
-        facultyId: formData.facultyId,
-        departmentId: formData.departmentId,
+        code: courseCode.toUpperCase(), // Use the validated code
         programId: formData.programId,
         description: formData.description?.trim() || '',
         credits: Number(formData.credits),
@@ -165,7 +193,10 @@ const CourseManagement = () => {
       // Debug log the data being sent
       console.log('Submitting course data:', courseData);
 
-      const response = await axios.post('/api/admin/courses', courseData);
+      const response = await axios.post('/api/admin/courses', {
+        ...courseData,
+        code: formData.code.toUpperCase().trim() || 'NO_CODE' // Fallback value as safety
+      });
 
       // Debug log the response
       console.log('Server response:', response.data);
@@ -196,8 +227,6 @@ const CourseManagement = () => {
       const updatedData = {
         name: formData.name.trim(),
         code: formData.code.toUpperCase().trim(),
-        facultyId: formData.facultyId,
-        departmentId: formData.departmentId,
         programId: formData.programId,
         description: formData.description?.trim() || '',
         credits: Number(formData.credits),
@@ -233,7 +262,7 @@ const CourseManagement = () => {
     setSuccessMessage('');
 
     try {
-      const response = await axios.delete(`/api/admin/courses/${courseId}`);
+      const response = await axios.delete(`/api/admin/remove-course/${courseId}`);
 
       setCourses(courses.filter(course => course._id !== courseId));
       setSuccessMessage(response.data.msg);
@@ -319,7 +348,7 @@ const CourseManagement = () => {
                   />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <FormControl fullWidth required error={!!validationErrors.facultyId}>
+                  <FormControl fullWidth error={!!validationErrors.facultyId}>
                     <InputLabel>Faculty</InputLabel>
                     <Select
                       value={formData.facultyId}
@@ -335,13 +364,15 @@ const CourseManagement = () => {
                         </MenuItem>
                       ))}
                     </Select>
-                    {validationErrors.facultyId && (
+                    {validationErrors.facultyId ? (
                       <FormHelperText error>{validationErrors.facultyId}</FormHelperText>
+                    ) : (
+                      <FormHelperText>Select to filter available programs</FormHelperText>
                     )}
                   </FormControl>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <FormControl fullWidth required error={!!validationErrors.departmentId}>
+                  <FormControl fullWidth error={!!validationErrors.departmentId}>
                     <InputLabel>Department</InputLabel>
                     <Select
                       value={formData.departmentId}
@@ -357,8 +388,10 @@ const CourseManagement = () => {
                         </MenuItem>
                       ))}
                     </Select>
-                    {validationErrors.departmentId && (
+                    {validationErrors.departmentId ? (
                       <FormHelperText error>{validationErrors.departmentId}</FormHelperText>
+                    ) : (
+                      <FormHelperText>Select to filter available programs</FormHelperText>
                     )}
                   </FormControl>
                 </Grid>
@@ -373,7 +406,7 @@ const CourseManagement = () => {
                         setValidationErrors({ ...validationErrors, programId: '' });
                       }}
                     >
-                      {programs.map((program) => (
+                      {filteredPrograms.map((program) => (
                         <MenuItem key={program._id} value={program._id}>
                           {program.name}
                         </MenuItem>
@@ -381,6 +414,9 @@ const CourseManagement = () => {
                     </Select>
                     {validationErrors.programId && (
                       <FormHelperText error>{validationErrors.programId}</FormHelperText>
+                    )}
+                    {(!formData.facultyId || !formData.departmentId) && (
+                      <FormHelperText>Select faculty and department first</FormHelperText>
                     )}
                   </FormControl>
                 </Grid>
@@ -575,147 +611,181 @@ const CourseManagement = () => {
         setOpenDialog(false);
         setSelectedCourse(null);
         resetForm();
-      }} maxWidth="md" fullWidth>
+      }} fullWidth maxWidth="md">
         <DialogTitle>
           Edit Course
+          <IconButton
+            aria-label="close"
+            onClick={() => {
+              setOpenDialog(false);
+              setSelectedCourse(null);
+              resetForm();
+            }}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
-        <DialogContent dividers>
-          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            <TextField
-              label="Course Name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Course Code"
-              value={formData.code}
-              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              required
-              fullWidth
-            />
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Faculty</InputLabel>
-                  <Select
-                    value={formData.facultyId}
-                    label="Faculty"
-                    onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
-                  >
-                    {faculties.map((faculty) => (
-                      <MenuItem key={faculty._id} value={faculty._id}>
-                        {faculty.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={formData.departmentId}
-                    label="Department"
-                    onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                  >
-                    {departments.map((department) => (
-                      <MenuItem key={department._id} value={department._id}>
-                        {department.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Program</InputLabel>
-                  <Select
-                    value={formData.programId}
-                    label="Program"
-                    onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
-                  >
-                    {programs.map((program) => (
-                      <MenuItem key={program._id} value={program._id}>
-                        {program.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>Semester</InputLabel>
-                  <Select
-                    value={formData.semester}
-                    label="Semester"
-                    onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                  >
-                    <MenuItem value="1">1st Semester</MenuItem>
-                    <MenuItem value="2">2nd Semester</MenuItem>
-                    <MenuItem value="3">3rd Semester</MenuItem>
-                    <MenuItem value="4">4th Semester</MenuItem>
-                    <MenuItem value="5">5th Semester</MenuItem>
-                    <MenuItem value="6">6th Semester</MenuItem>
-                    <MenuItem value="7">7th Semester</MenuItem>
-                    <MenuItem value="8">8th Semester</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Credits"
-                  type="number"
-                  value={formData.credits}
-                  onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
-                  required
-                  fullWidth
-                  inputProps={{ min: 1, max: 25 }}
-                  helperText="Credits (1-25)"
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label="Program Year"
-                  type="number"
-                  value={formData.programYear}
-                  onChange={(e) => {
-                    setFormData({ ...formData, programYear: e.target.value });
-                    setValidationErrors({ ...validationErrors, programYear: '' });
-                  }}
-                  required
-                  error={!!validationErrors.programYear}
-                  helperText={validationErrors.programYear || "Enter program year (1-6)"}
-                  inputProps={{ min: 1, max: 6 }}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={formData.status}
-                    label="Status"
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  >
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="inactive">Inactive</MenuItem>
-                    <MenuItem value="archived">Archived</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  label="Description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  multiline
-                  rows={3}
-                  fullWidth
-                />
-              </Grid>
+        <DialogContent>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Course Name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                margin="normal"
+              />
             </Grid>
-          </Box>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Course Code"
+                value={formData.code}
+                onChange={(e) => {
+                  setFormData({ ...formData, code: e.target.value });
+                  setValidationErrors({ ...validationErrors, code: '' });
+                }}
+                required
+                margin="normal"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth error={!!validationErrors.facultyId} margin="normal">
+                <InputLabel>Faculty</InputLabel>
+                <Select
+                  value={formData.facultyId}
+                  label="Faculty"
+                  onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
+                >
+                  {faculties.map((faculty) => (
+                    <MenuItem key={faculty._id} value={faculty._id}>
+                      {faculty.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {validationErrors.facultyId ? (
+                  <FormHelperText error>{validationErrors.facultyId}</FormHelperText>
+                ) : (
+                  <FormHelperText>Select to filter available programs</FormHelperText>
+                )}
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth error={!!validationErrors.departmentId} margin="normal">
+                <InputLabel>Department</InputLabel>
+                <Select
+                  value={formData.departmentId}
+                  label="Department"
+                  onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                >
+                  {departments.map((department) => (
+                    <MenuItem key={department._id} value={department._id}>
+                      {department.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {validationErrors.departmentId ? (
+                  <FormHelperText error>{validationErrors.departmentId}</FormHelperText>
+                ) : (
+                  <FormHelperText>Select to filter available programs</FormHelperText>
+                )}
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth required error={!!validationErrors.programId} margin="normal">
+                <InputLabel>Program</InputLabel>
+                <Select
+                  value={formData.programId}
+                  label="Program"
+                  onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
+                >
+                  {filteredPrograms.map((program) => (
+                    <MenuItem key={program._id} value={program._id}>
+                      {program.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                {validationErrors.programId && (
+                  <FormHelperText error>{validationErrors.programId}</FormHelperText>
+                )}
+                {(!formData.facultyId || !formData.departmentId) && (
+                  <FormHelperText>Select faculty and department first</FormHelperText>
+                )}
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth required>
+                <InputLabel>Semester</InputLabel>
+                <Select
+                  value={formData.semester}
+                  label="Semester"
+                  onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                >
+                  <MenuItem value="1">1st Semester</MenuItem>
+                  <MenuItem value="2">2nd Semester</MenuItem>
+                  <MenuItem value="3">3rd Semester</MenuItem>
+                  <MenuItem value="4">4th Semester</MenuItem>
+                  <MenuItem value="5">5th Semester</MenuItem>
+                  <MenuItem value="6">6th Semester</MenuItem>
+                  <MenuItem value="7">7th Semester</MenuItem>
+                  <MenuItem value="8">8th Semester</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="Credits"
+                type="number"
+                value={formData.credits}
+                onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
+                required
+                fullWidth
+                inputProps={{ min: 1, max: 25 }}
+                helperText="Credits (1-25)"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="Program Year"
+                type="number"
+                value={formData.programYear}
+                onChange={(e) => {
+                  setFormData({ ...formData, programYear: e.target.value });
+                  setValidationErrors({ ...validationErrors, programYear: '' });
+                }}
+                required
+                error={!!validationErrors.programYear}
+                helperText={validationErrors.programYear || "Enter program year (1-6)"}
+                inputProps={{ min: 1, max: 6 }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={formData.status}
+                  label="Status"
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                >
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="inactive">Inactive</MenuItem>
+                  <MenuItem value="archived">Archived</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                multiline
+                rows={3}
+                fullWidth
+              />
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
           <Button 

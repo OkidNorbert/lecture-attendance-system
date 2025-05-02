@@ -479,7 +479,38 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
     // Validate required fields
     if (!name || !code || !programId || !credits || !semester || !programYear) {
       console.log('Missing fields:', { name, code, programId, credits, semester, programYear });
-      return res.status(400).json({ msg: 'Please provide all required fields' });
+      return res.status(400).json({ 
+        msg: 'Please provide all required fields',
+        errors: {
+          name: !name ? 'Course name is required' : undefined,
+          code: !code || code.trim() === '' ? 'Course code is required' : undefined,
+          programId: !programId ? 'Program is required' : undefined,
+          credits: !credits ? 'Credits are required' : undefined,
+          semester: !semester ? 'Semester is required' : undefined,
+          programYear: !programYear ? 'Program Year is required' : undefined
+        }
+      });
+    }
+
+    // Extra validation for code to prevent empty strings
+    if (!code || code.trim() === '') {
+      return res.status(400).json({ 
+        msg: 'Course code cannot be empty',
+        errors: {
+          code: 'Course code is required'
+        }
+      });
+    }
+
+    // Check if course code already exists
+    const existingCourse = await Course.findOne({ course_code: code.toUpperCase().trim() });
+    if (existingCourse) {
+      return res.status(400).json({ 
+        msg: 'Course code already exists',
+        errors: {
+          code: 'This course code is already in use'
+        }
+      });
     }
 
     // Check if program exists
@@ -491,7 +522,7 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
     // Create course
     const course = new Course({
       course_name: name.trim(),
-      course_code: code.toUpperCase().trim(),
+      course_code: code && code.trim() ? code.toUpperCase().trim() : undefined,
       program_id: programId,
       description: description?.trim() || '',
       credits: Number(credits),
@@ -527,8 +558,40 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Create course error:', err);
     if (err.name === 'ValidationError') {
-      return res.status(400).json({ msg: err.message });
+      const errors = {};
+      for (const field in err.errors) {
+        errors[field.replace('course_', '')] = err.errors[field].message;
+      }
+      return res.status(400).json({ 
+        msg: 'Validation Error', 
+        errors 
+      });
     }
+    
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern)[0];
+      const keyValue = err.keyValue ? 
+        (err.keyValue[field] || 'null') : 
+        'null';
+        
+      if (keyValue === null || keyValue === 'null') {
+        // Specific handling for null values
+        return res.status(400).json({
+          msg: 'Invalid Data Error',
+          errors: {
+            code: 'Course code cannot be empty'
+          }
+        });
+      }
+      
+      return res.status(400).json({
+        msg: 'Duplicate Error',
+        errors: {
+          [field.replace('course_', '')]: `This ${field.replace('course_', '')} already exists: ${keyValue}`
+        }
+      });
+    }
+    
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
@@ -1527,7 +1590,38 @@ router.post('/courses', protect, async (req, res) => {
     // Validate required fields
     if (!name || !code || !programId || !credits || !semester || !programYear) {
       console.log('Missing fields:', { name, code, programId, credits, semester, programYear });
-      return res.status(400).json({ msg: 'Please provide all required fields' });
+      return res.status(400).json({ 
+        msg: 'Please provide all required fields',
+        errors: {
+          name: !name ? 'Course name is required' : undefined,
+          code: !code || code.trim() === '' ? 'Course code is required' : undefined,
+          programId: !programId ? 'Program is required' : undefined,
+          credits: !credits ? 'Credits are required' : undefined,
+          semester: !semester ? 'Semester is required' : undefined,
+          programYear: !programYear ? 'Program Year is required' : undefined
+        }
+      });
+    }
+
+    // Extra validation for code to prevent empty strings
+    if (!code || code.trim() === '') {
+      return res.status(400).json({ 
+        msg: 'Course code cannot be empty',
+        errors: {
+          code: 'Course code is required'
+        }
+      });
+    }
+
+    // Check if course code already exists
+    const existingCourse = await Course.findOne({ course_code: code.toUpperCase().trim() });
+    if (existingCourse) {
+      return res.status(400).json({ 
+        msg: 'Course code already exists',
+        errors: {
+          code: 'This course code is already in use'
+        }
+      });
     }
 
     // Check if program exists
@@ -1539,7 +1633,7 @@ router.post('/courses', protect, async (req, res) => {
     // Create course
     const course = new Course({
       course_name: name.trim(),
-      course_code: code.toUpperCase().trim(),
+      course_code: code && code.trim() ? code.toUpperCase().trim() : undefined,
       program_id: programId,
       description: description?.trim() || '',
       credits: Number(credits),
@@ -1575,8 +1669,40 @@ router.post('/courses', protect, async (req, res) => {
   } catch (err) {
     console.error('Create course error:', err);
     if (err.name === 'ValidationError') {
-      return res.status(400).json({ msg: err.message });
+      const errors = {};
+      for (const field in err.errors) {
+        errors[field.replace('course_', '')] = err.errors[field].message;
+      }
+      return res.status(400).json({ 
+        msg: 'Validation Error', 
+        errors 
+      });
     }
+    
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern)[0];
+      const keyValue = err.keyValue ? 
+        (err.keyValue[field] || 'null') : 
+        'null';
+        
+      if (keyValue === null || keyValue === 'null') {
+        // Specific handling for null values
+        return res.status(400).json({
+          msg: 'Invalid Data Error',
+          errors: {
+            code: 'Course code cannot be empty'
+          }
+        });
+      }
+      
+      return res.status(400).json({
+        msg: 'Duplicate Error',
+        errors: {
+          [field.replace('course_', '')]: `This ${field.replace('course_', '')} already exists: ${keyValue}`
+        }
+      });
+    }
+    
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });

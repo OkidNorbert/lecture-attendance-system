@@ -27,6 +27,11 @@ router.post("/register", async (req, res) => {
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ msg: "User already registered" });
 
+    // Role-specific validation
+    if (role === 'lecturer' && (!courses || !Array.isArray(courses) || courses.length === 0)) {
+      return res.status(400).json({ msg: "Please select at least one course to teach" });
+    }
+
     // Generate current year
     const currentYear = new Date().getFullYear();
     const programYear = 1; // Default to first year for new students

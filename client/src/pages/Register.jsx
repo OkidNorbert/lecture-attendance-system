@@ -90,6 +90,13 @@ const Register = () => {
     setError("");
     
     try {
+      // Validate lecturer courses
+      if (formData.role === 'lecturer' && (!formData.courses || formData.courses.length === 0)) {
+        setError("Please select at least one course to teach");
+        setIsLoading(false);
+        return;
+      }
+      
       // Create user account
       const userData = {
         first_name: formData.first_name,
@@ -265,7 +272,8 @@ const Register = () => {
             {formData.role === "lecturer" && formData.program_id && filteredCourses.length > 0 && (
               <div className="rounded-lg border border-gray-300 p-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Courses to Teach:
+                  Select Courses to Teach: <span className="text-red-500">*</span>
+                  <span className="ml-1 text-sm text-gray-500">(required)</span>
                 </label>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {filteredCourses.map(course => (
@@ -284,6 +292,9 @@ const Register = () => {
                     </div>
                   ))}
                 </div>
+                {error && error.includes("course") && (
+                  <p className="mt-2 text-sm text-red-600">{error}</p>
+                )}
               </div>
             )}
           </div>

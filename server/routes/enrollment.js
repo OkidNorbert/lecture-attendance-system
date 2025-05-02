@@ -153,4 +153,48 @@ router.delete('/:id', protect, authorize(['admin', 'lecturer']), async (req, res
   }
 });
 
+// @route   POST /api/enrollments/reset-student/:studentId
+// @desc    Reset all enrollments for a specific student
+// @access  Private (Admin only)
+router.post('/reset-student/:studentId', protect, authorize(['admin']), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    // Verify student exists
+    const student = await User.findById(studentId);
+    if (!student || student.role !== 'student') {
+      return res.status(400).json({ message: 'Invalid student' });
+    }
+    
+    // Delete all enrollments for this student
+    const result = await Enrollment.deleteMany({ studentId });
+    
+    res.json({ 
+      message: `Successfully reset enrollments for student`, 
+      count: result.deletedCount 
+    });
+  } catch (error) {
+    console.error('Error resetting student enrollments:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/enrollments/reset-all
+// @desc    Reset all enrollments for all students
+// @access  Private (Admin only)
+router.post('/reset-all', protect, authorize(['admin']), async (req, res) => {
+  try {
+    // Delete all enrollments
+    const result = await Enrollment.deleteMany({});
+    
+    res.json({ 
+      message: 'Successfully reset all enrollments', 
+      count: result.deletedCount 
+    });
+  } catch (error) {
+    console.error('Error resetting all enrollments:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router; 

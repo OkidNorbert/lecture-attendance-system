@@ -30,13 +30,15 @@ import {
   CardContent,
   CardActions,
   Chip,
-  Autocomplete
+  Autocomplete,
+  Tooltip
 } from '@mui/material';
 import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Close as CloseIcon,
-  Person as PersonIcon
+  Person as PersonIcon,
+  School as SchoolIcon
 } from '@mui/icons-material';
 
 // Import our responsive components
@@ -69,6 +71,7 @@ const UserManagement = () => {
   const [enrollments, setEnrollments] = useState([]);
   const [viewingEnrollments, setViewingEnrollments] = useState(false);
   const [programCourses, setProgramCourses] = useState([]);
+  const [success, setSuccess] = useState('');
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -345,12 +348,39 @@ const UserManagement = () => {
   };
 
   const handleUpdate = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const userData = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        role: formData.role
+      };
+
+      // Include password only if it was provided
+      if (formData.password) {
+        userData.password = formData.password;
+      }
+
+      // Add role-specific data
+      if (formData.role === 'student') {
+        userData.program_id = formData.program;
+        userData.semester = formData.semester;
+        userData.programYear = formData.programYear;
+      } else if (formData.role === 'lecturer') {
+        userData.courses = formData.courses;
+      }
+
+      // Update user
       const response = await axios.put(
         `http://localhost:5000/api/admin/users/${editingUser._id}`,
-        formData,
+        userData,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -358,13 +388,21 @@ const UserManagement = () => {
           }
         }
       );
-      setUsers(users.map(user => 
-        user._id === editingUser._id ? response.data : user
-      ));
+
+      // Update successful, refresh the user list
+      fetchUsers();
+      
+      // Close dialog and reset form
       handleDialogClose();
-      setError('');
+      
+      // Show success message
+      setSuccess('User updated successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.msg || 'Error updating user');
+      console.error('Error updating user:', err);
+      setError(err.response?.data?.msg || 'Failed to update user');
     } finally {
       setLoading(false);
     }
@@ -376,25 +414,38 @@ const UserManagement = () => {
   };
 
   const confirmDelete = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
-      await axios.delete(
-        `http://localhost:5000/api/admin/users/${selectedUserId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      await axios.delete(`http://localhost:5000/api/admin/users/${selectedUserId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      );
-      setUsers(users.filter(user => user._id !== selectedUserId));
+      });
+
+      // Delete successful, refresh the user list
+      fetchUsers();
+      
+      // Close dialog
       setDeleteConfirmOpen(false);
-      setError('');
+      
+      // Show success message
+      setSuccess('User deleted successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.msg || 'Error deleting user');
+      console.error('Error deleting user:', err);
+      setError(err.response?.data?.msg || 'Failed to delete user');
     } finally {
       setLoading(false);
+      setDeleteConfirmOpen(false);
     }
   };
 
@@ -582,12 +633,12 @@ const UserManagement = () => {
             <TableCell>Semester</TableCell>
             <TableCell>Program Year</TableCell>
             <TableCell>Status</TableCell>
-            <TableCell align="right">Actions</TableCell>
+            <TableCell align="center">Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {users.map((user) => (
-            <TableRow key={user._id}>
+            <TableRow key={user._id} hover>
               <TableCell>
                 {user.first_name && user.last_name 
                   ? `${user.first_name} ${user.last_name}`
@@ -597,36 +648,54 @@ const UserManagement = () => {
               <TableCell>
                 <Chip 
                   label={user.role.charAt(0).toUpperCase() + user.role.slice(1)} 
-                  color={getRoleColor(user.role)} 
+                  color={getRoleColor(user.role)}
                   size="small" 
                 />
               </TableCell>
-              <TableCell>{user.program?.name}</TableCell>
-              <TableCell>{user.semester}</TableCell>
-              <TableCell>{user.programYear}</TableCell>
+              <TableCell>{user.program?.name || '-'}</TableCell>
+              <TableCell>{user.semester || '-'}</TableCell>
+              <TableCell>{user.programYear || '-'}</TableCell>
               <TableCell>
                 <Chip 
-                  label={user.status} 
+                  label={user.isActive ? 'Active' : 'Inactive'} 
                   size="small"
-                  color={user.status === 'enrolled' ? 'success' : 'default'}
+                  color={user.isActive ? 'success' : 'default'}
                 />
               </TableCell>
-              <TableCell align="right">
-                <IconButton
-                  size="small"
-                  onClick={() => handleEdit(user)}
-                  color="primary"
-                  sx={{ mr: 1 }}
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-                <IconButton
-                  size="small"
-                  onClick={() => handleDelete(user._id)}
-                  color="error"
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
+              <TableCell align="center">
+                <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                  <Tooltip title="Edit User">
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleEdit(user)}
+                      color="primary"
+                      sx={{ mr: 1 }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  
+                  <Tooltip title="View Enrollments">
+                    <IconButton 
+                      size="small" 
+                      onClick={() => showUserEnrollments(user._id)}
+                      color="info"
+                      sx={{ mr: 1 }}
+                    >
+                      <SchoolIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  
+                  <Tooltip title="Delete User">
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleDelete(user._id)}
+                      color="error"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </TableCell>
             </TableRow>
           ))}
@@ -1065,9 +1134,9 @@ const UserManagement = () => {
       )}
 
       {/* Edit User Dialog */}
-      <Dialog open={openDialog} onClose={handleDialogClose} maxWidth="sm" fullWidth>
+      <Dialog open={openDialog} onClose={handleDialogClose} maxWidth="md" fullWidth>
         <DialogTitle>
-          Edit User
+          {editingUser ? 'Edit User' : 'Create User'}
           <IconButton
             aria-label="close"
             onClick={handleDialogClose}
@@ -1077,6 +1146,58 @@ const UserManagement = () => {
           </IconButton>
         </DialogTitle>
         <DialogContent>
+          {editingUser && (
+            <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                User Information
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6} md={3}>
+                  <Typography variant="body2" color="text.secondary">User ID</Typography>
+                  <Typography variant="body1" noWrap sx={{ maxWidth: '100%' }}>{editingUser._id}</Typography>
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Typography variant="body2" color="text.secondary">Role</Typography>
+                  <Chip 
+                    label={editingUser.role.charAt(0).toUpperCase() + editingUser.role.slice(1)} 
+                    color={getRoleColor(editingUser.role)}
+                    size="small" 
+                  />
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Typography variant="body2" color="text.secondary">Status</Typography>
+                  <Chip 
+                    label={editingUser.isActive ? 'Active' : 'Inactive'} 
+                    color={editingUser.isActive ? 'success' : 'default'}
+                    size="small" 
+                  />
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Typography variant="body2" color="text.secondary">Approval</Typography>
+                  <Chip 
+                    label={editingUser.isApproved ? 'Approved' : 'Pending'} 
+                    color={editingUser.isApproved ? 'success' : 'warning'}
+                    size="small" 
+                  />
+                </Grid>
+                {editingUser.studentId && (
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">Student ID</Typography>
+                    <Typography variant="body1">{editingUser.studentId}</Typography>
+                  </Grid>
+                )}
+                {editingUser.createdAt && (
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" color="text.secondary">Account Created</Typography>
+                    <Typography variant="body1">
+                      {new Date(editingUser.createdAt).toLocaleString()}
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
+          
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -1130,6 +1251,7 @@ const UserManagement = () => {
               />
             </Grid>
             
+            {/* Continue with the rest of the form */}
             {(formData.role === 'student' || formData.role === 'lecturer') && (
               <>
                 <Grid item xs={12}>
@@ -1246,12 +1368,18 @@ const UserManagement = () => {
         <DialogActions>
           <Button onClick={handleDialogClose}>Cancel</Button>
           <Button 
-            onClick={handleUpdate} 
+            onClick={editingUser ? handleUpdate : handleSubmit} 
             variant="contained" 
             color="primary"
             disabled={loading}
           >
-            {loading ? <CircularProgress size={24} /> : 'Update'}
+            {loading ? (
+              <CircularProgress size={24} />
+            ) : editingUser ? (
+              'Save Changes'
+            ) : (
+              'Create User'
+            )}
           </Button>
         </DialogActions>
       </Dialog>
