@@ -385,6 +385,8 @@ const UserManagement = () => {
         userData.department = formData.department;
       } else if (formData.role === 'student') {
         userData.program_id = formData.program;
+        userData.semester = formData.semester;
+        userData.programYear = formData.programYear;
       }
 
       // Only include password if it's been changed
@@ -687,7 +689,7 @@ const UserManagement = () => {
                   size="small"
                 />
               </TableCell>
-              <TableCell>{user.program?.name || '-'}</TableCell>
+              <TableCell>{user.program || '-'}</TableCell>
               <TableCell>{user.semester || '-'}</TableCell>
               <TableCell>{user.programYear || '-'}</TableCell>
               <TableCell>

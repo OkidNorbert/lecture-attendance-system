@@ -45,6 +45,14 @@ const EnrollmentSchema = new mongoose.Schema({
     min: [1, 'Program year must be at least 1'],
     max: [6, 'Program year cannot exceed 6']
   },
+  academicYear: {
+    type: String,
+    required: [true, 'Academic year is required'],
+    default: () => {
+      const currentYear = new Date().getFullYear();
+      return `${currentYear}-${currentYear + 1}`;
+    }
+  },
   status: {
     type: String,
     enum: ['enrolled', 'dropped', 'completed'],
@@ -63,7 +71,7 @@ const EnrollmentSchema = new mongoose.Schema({
 });
 
 // Ensure unique enrollment for student in a course
-EnrollmentSchema.index({ studentId: 1, courseId: 1, semester: 1, programYear: 1 }, { unique: true });
+EnrollmentSchema.index({ studentId: 1, courseId: 1, semester: 1, programYear: 1, academicYear: 1 }, { unique: true });
 
 // Pre-save middleware to update lastModified
 EnrollmentSchema.pre('save', function(next) {

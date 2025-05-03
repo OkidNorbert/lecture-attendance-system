@@ -384,20 +384,23 @@ const Dashboard = () => {
                 <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mr-3">
                   <span className="text-emerald-700 text-xl">➕</span>
                 </div>
-                <h3 className="font-semibold text-emerald-900">Enrollment</h3>
+                <h3 className="font-semibold text-emerald-900">Course Enrollment</h3>
               </div>
               
-              {enrollmentData.isEnrollmentOpen && enrollmentData.availableSemesters.length > 0 ? (
+              <Link
+                to="/enroll-courses"
+                className="mt-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg shadow hover:shadow-lg transition duration-300 text-center"
+              >
+                Self-Enroll in Courses
+              </Link>
+              
+              {enrollmentData.isEnrollmentOpen && enrollmentData.availableSemesters.length > 0 && (
                 <button
                   onClick={handleEnrollmentModalOpen}
-                  className="mt-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg shadow hover:shadow-lg transition duration-300"
+                  className="mt-2 px-4 py-2.5 bg-white border border-teal-500 text-teal-700 rounded-lg hover:bg-teal-50 transition duration-300"
                 >
                   Enroll for Next Semester
                 </button>
-              ) : (
-                <p className="text-gray-600 italic">
-                  Enrollment not available at this time
-                </p>
               )}
             </div>
           </div>
@@ -406,7 +409,7 @@ const Dashboard = () => {
         {/* Quick Actions Section */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
           <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Link 
               to="/scan-qr" 
               className="flex flex-col items-center p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition duration-200"
@@ -425,6 +428,16 @@ const Dashboard = () => {
                 <span className="text-2xl">📜</span>
               </div>
               <span className="text-emerald-800 font-medium">History</span>
+            </Link>
+            
+            <Link 
+              to="/enroll-courses"
+              className="flex flex-col items-center p-4 bg-violet-50 rounded-xl hover:bg-violet-100 transition duration-200"
+            >
+              <div className="w-14 h-14 bg-violet-100 rounded-full flex items-center justify-center mb-3">
+                <span className="text-2xl">📚</span>
+              </div>
+              <span className="text-violet-800 font-medium">Enroll Courses</span>
             </Link>
             
             <Link 

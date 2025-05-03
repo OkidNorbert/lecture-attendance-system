@@ -109,21 +109,47 @@ ProgramSchema.pre('save', async function(next) {
 
 // Method to calculate program statistics
 ProgramSchema.methods.calculateStatistics = async function() {
-  const grades = await mongoose.model('Grade').find({
-    courseId: { $in: this.courses }
-  });
+  // Make sure courses array exists and is non-empty
+  if (!this.courses || this.courses.length === 0) {
+    this.statistics.totalCourses = 0;
+    this.statistics.averageGPA = 0;
+  } else {
+    this.statistics.totalCourses = this.courses.length;
+    
+    const grades = await mongoose.model('Grade').find({
+      courseId: { $in: this.courses }
+    });
 
-  if (grades.length > 0) {
-    // Calculate average GPA
-    const totalGPA = grades.reduce((sum, grade) => sum + grade.gpa, 0);
-    this.statistics.averageGPA = totalGPA / grades.length;
-
-    // Calculate graduation rate
+    if (grades && grades.length > 0) {
+      // Calculate average GPA
+      const totalGPA = grades.reduce((sum, grade) => sum + grade.gpa, 0);
+      this.statistics.averageGPA = totalGPA / grades.length;
+    } else {
+      this.statistics.averageGPA = 0;
+    }
+  }
+  
+  // Make sure students array exists and is non-empty
+  if (!this.students || this.students.length === 0) {
+    this.statistics.totalStudents = 0;
+    this.statistics.graduationRate = 0;
+  } else {
+    this.statistics.totalStudents = this.students.length;
+    
+    // Calculate graduation rate if students exist
     const graduatedStudents = await mongoose.model('User').countDocuments({
       _id: { $in: this.students },
       status: 'graduated'
     });
+    
     this.statistics.graduationRate = (graduatedStudents / this.students.length) * 100;
+  }
+  
+  // Make sure lecturers array exists and is non-empty
+  if (!this.lecturers || this.lecturers.length === 0) {
+    this.statistics.totalLecturers = 0;
+  } else {
+    this.statistics.totalLecturers = this.lecturers.length;
   }
 
   await this.save();
@@ -135,9 +161,9 @@ ProgramSchema.virtual('fullDetails').get(function() {
     ...this.toObject(),
     facultyName: this.facultyId ? this.facultyId.name : '',
     departmentName: this.departmentId ? this.departmentId.name : '',
-    coursesCount: this.courses.length,
-    lecturersCount: this.lecturers.length,
-    studentsCount: this.students.length
+    coursesCount: this.courses ? this.courses.length : 0,
+    lecturersCount: this.lecturers ? this.lecturers.length : 0,
+    studentsCount: this.students ? this.students.length : 0
   };
 });
 

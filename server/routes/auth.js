@@ -135,7 +135,8 @@ router.post("/register", async (req, res) => {
     }
 
     // Generate JWT Token
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ _id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    console.log('Registration token payload:', { _id: user._id, role: user.role });
 
     res.status(201).json({ 
       msg: "User registered successfully! Please wait for admin approval.", 
@@ -193,8 +194,8 @@ router.post('/login', async (req, res) => {
 
     // Create JWT payload
     const payload = {
-      id: user._id,
-      role: user.role
+      _id: user._id,
+      role: user.role.toLowerCase() === 'admin' ? 'admin' : user.role
     };
 
     // Sign token
@@ -204,17 +205,18 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' },
       (err, token) => {
         if (err) throw err;
-        console.log(`Login successful for: ${email} with role: ${user.role}`);
+        console.log(`Login successful for: ${email} with role: ${payload.role}`);
+        console.log('Token payload:', payload);
         res.json({
           token,
-          role: user.role,
+          role: payload.role,
           user: {
             id: user._id,
             name: `${user.first_name} ${user.last_name}`,
             first_name: user.first_name,
             last_name: user.last_name,
             email: user.email,
-            role: user.role
+            role: payload.role
           }
         });
       }
@@ -248,14 +250,25 @@ router.post("/admin/login", async (req, res) => {
     }
 
     // Generate JWT Token
-    const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const adminRole = admin.role.toLowerCase() === 'admin' ? 'admin' : admin.role;
+    const payload = {
+      _id: admin._id,
+      role: adminRole
+    };
+    
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "24h" });
+    console.log('Admin token payload:', payload);
 
     res.json({ 
       token, 
-      admin: { 
+      role: adminRole,
+      user: { 
         id: admin._id, 
         email: admin.email,
-        name: `${admin.first_name} ${admin.last_name}`
+        first_name: admin.first_name,
+        last_name: admin.last_name,
+        name: `${admin.first_name} ${admin.last_name}`,
+        role: adminRole
       } 
     });
   } catch (error) {
@@ -269,10 +282,35 @@ router.post("/admin/login", async (req, res) => {
 // @access  Private
 router.get('/me', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password_hash');
-    res.json(user);
+    console.log('/api/auth/me - User data from token:', req.user);
+    
+    // Handle both id and _id for compatibility
+    const userId = req.user._id || req.user.id;
+    
+    const user = await User.findById(userId).select('-password_hash');
+    
+    if (!user) {
+      console.log('User not found with ID:', userId);
+      return res.status(404).json({ msg: 'User not found' });
+    }
+    
+    // Ensure the role is properly normalized
+    const userData = user.toObject();
+    
+    // Force role to be lowercase for consistency
+    if (userData.role) {
+      userData.role = userData.role.toLowerCase() === 'admin' ? 'admin' : userData.role;
+    }
+    
+    console.log('User found:', {
+      id: userData._id,
+      email: userData.email,
+      role: userData.role
+    });
+    
+    res.json(userData);
   } catch (err) {
-    console.error(err.message);
+    console.error('Error in /me endpoint:', err.message);
     res.status(500).send('Server Error');
   }
 });

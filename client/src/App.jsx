@@ -15,6 +15,7 @@ import FacultyManagement from './components/admin/FacultyManagement';
 import SystemOverview from './components/admin/SystemOverview';
 import AttendanceAnalytics from './components/admin/AttendanceAnalytics';
 import EnrollmentManagement from './components/EnrollmentManagement';
+import StudentCourseEnrollment from './components/StudentCourseEnrollment';
 
 // Route guard for redirecting to role-specific dashboard
 const DashboardRedirect = () => {
@@ -143,6 +144,14 @@ function App() {
         element={
           <StudentRoute>
             <ScanQR />
+          </StudentRoute>
+        }
+      />
+      <Route 
+        path="/enroll-courses" 
+        element={
+          <StudentRoute>
+            <StudentCourseEnrollment />
           </StudentRoute>
         }
       />

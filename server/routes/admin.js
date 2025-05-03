@@ -112,26 +112,26 @@ router.get("/users", protect, adminMiddleware, async (req, res) => {
 
     let query = {};
     if (role) {
-      query = { 
-        role: role,
-        isApproved: true // Only get approved users
-      };
+      query = { role: role };
+      // Removed the isApproved filter to show all users
     }
 
     const users = await User.find(query)
-      .select('first_name last_name email role department')
+      .select('first_name last_name email role department isApproved isActive')
       .populate('department', 'name')
       .sort({ first_name: 1, last_name: 1 });
 
     // Process user data for client display
     const formattedUsers = users.map(user => ({
-      id: user._id,
+      _id: user._id, // Changed from id to _id to match what frontend expects
       name: `${user.first_name} ${user.last_name}`,
       first_name: user.first_name,
       last_name: user.last_name,
       email: user.email,
       role: user.role,
-      department: user.department ? user.department.name : null
+      department: user.department ? user.department.name : null,
+      isApproved: user.isApproved,
+      isActive: user.isActive
     }));
 
     // Add debug logging
@@ -1349,8 +1349,9 @@ router.get('/users', protect, async (req, res) => {
     }
 
     const users = await User.find()
-      .select('first_name last_name email role isApproved department')
+      .select('first_name last_name email role isApproved isActive department program_id semester programYear')
       .populate('department', 'name')
+      .populate('program_id', 'name code')
       .sort({ first_name: 1, last_name: 1 });
 
     // Return consistent user structure
@@ -1361,7 +1362,12 @@ router.get('/users', protect, async (req, res) => {
       email: user.email,
       role: user.role,
       isApproved: user.isApproved,
-      department: user.department ? user.department.name : null
+      isActive: user.isActive,
+      department: user.department ? user.department.name : null,
+      program: user.program_id ? user.program_id.name : null,
+      program_id: user.program_id ? user.program_id._id : null,
+      semester: user.semester || null,
+      programYear: user.programYear || null
     }));
 
     res.json(formattedUsers);
@@ -2299,7 +2305,7 @@ router.put("/users/:id", protect, adminMiddleware, async (req, res) => {
     console.log('Updating user:', req.params.id);
     console.log('Update data:', req.body);
 
-    const { first_name, last_name, email, role, password } = req.body;
+    const { first_name, last_name, email, role, password, semester, programYear, program_id } = req.body;
 
     // Check if user exists
     const user = await User.findById(req.params.id);
@@ -2321,6 +2327,7 @@ router.put("/users/:id", protect, adminMiddleware, async (req, res) => {
     user.email = email;
     user.role = role;
 
+    // Update role-specific fields
     // Update password if provided
     if (password && password.trim() !== '') {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -2622,92 +2629,123 @@ router.get('/courses-detailed', protect, async (req, res) => {
       .populate('faculty', 'name code')
       .populate('department', 'name code');
     
+    console.log(`Found ${courses.length} courses to process`);
+    
     // Create an array to hold the processed courses
     const processedCourses = [];
     
-    // Process each course
+    // Process each course with error handling
     for (const course of courses) {
-      console.log('Processing course:', course.course_name, 'Program ID:', course.program_id);
-      
-      // Start with the basic course data
-      const courseData = course.toObject({ virtuals: true });
-      
-      // Get program details
-      let programDetails = null;
-      if (course.program_id) {
+      try {
+        console.log(`Processing course: ${course.course_name}, ID: ${course._id}`);
+        
+        // Start with the basic course data
+        const courseData = course.toObject({ virtuals: true });
+        
+        // Get program details
+        let programDetails = null;
         try {
-          programDetails = await Program.findById(course.program_id)
-            .populate('facultyId', 'name code')
-            .populate('departmentId', 'name code');
-            
-          console.log('Found program details:', programDetails ? programDetails.name : 'Not found');
-        } catch (err) {
-          console.error('Error getting program details:', err);
+          if (course.program_id) {
+            programDetails = await Program.findById(course.program_id)
+              .populate('facultyId', 'name code')
+              .populate('departmentId', 'name code');
+              
+            console.log(`Found program details for ${course.course_name}: ${programDetails ? programDetails.name : 'Not found'}`);
+          }
+        } catch (programErr) {
+          console.error(`Error getting program details for course ${course._id}:`, programErr);
         }
+        
+        // Get faculty and department data
+        let faculty = null;
+        let department = null;
+        
+        try {
+          // First try direct faculty/department references
+          if (course.faculty) {
+            faculty = await mongoose.model('Faculty').findById(course.faculty).select('name code');
+          }
+          
+          if (course.department) {
+            department = await mongoose.model('Department').findById(course.department).select('name code');
+          }
+          
+          // If not found, try to get from program
+          if (!faculty && programDetails?.facultyId) {
+            faculty = programDetails.facultyId;
+          }
+          
+          if (!department && programDetails?.departmentId) {
+            department = programDetails.departmentId;
+          }
+        } catch (refErr) {
+          console.error(`Error getting faculty/department for course ${course._id}:`, refErr);
+        }
+        
+        // Create the processed course object
+        const processedCourse = {
+          _id: course._id,
+          id: course._id,
+          name: course.course_name,
+          course_name: course.course_name,
+          code: course.course_code,
+          course_code: course.course_code,
+          program_id: course.program_id,
+          programId: course.program_id,
+          program: programDetails ? {
+            id: programDetails._id,
+            _id: programDetails._id,
+            name: programDetails.name,
+            code: programDetails.code
+          } : course.program_id ? {
+            id: course.program_id._id || course.program_id,
+            _id: course.program_id._id || course.program_id,
+            name: course.program_id.name || 'Unknown',
+            code: course.program_id.code || 'Unknown'
+          } : null,
+          faculty: faculty,
+          department: department,
+          facultyId: faculty,
+          departmentId: department,
+          description: course.description,
+          credits: course.credits || 0,
+          semester: course.semester || '',
+          programYear: course.programYear || 0,
+          status: course.status || 'active'
+        };
+        
+        processedCourses.push(processedCourse);
+      } catch (courseErr) {
+        console.error(`Error processing course ${course._id}:`, courseErr);
+        // Continue with next course even if this one fails
       }
-      
-      // Get faculty and department data
-      let faculty = null;
-      let department = null;
-      
-      // First try direct faculty/department references
-      if (course.faculty) {
-        faculty = await mongoose.model('Faculty').findById(course.faculty).select('name code');
-      }
-      
-      if (course.department) {
-        department = await mongoose.model('Department').findById(course.department).select('name code');
-      }
-      
-      // If not found, try to get from program
-      if (!faculty && programDetails?.facultyId) {
-        faculty = programDetails.facultyId;
-      }
-      
-      if (!department && programDetails?.departmentId) {
-        department = programDetails.departmentId;
-      }
-      
-      // Create the processed course object
-      const processedCourse = {
-        _id: course._id,
-        id: course._id,
-        name: course.course_name,
-        course_name: course.course_name,
-        code: course.course_code,
-        course_code: course.course_code,
-        program_id: course.program_id,
-        programId: course.program_id,
-        program: programDetails ? {
-          id: programDetails._id,
-          _id: programDetails._id,
-          name: programDetails.name,
-          code: programDetails.code
-        } : course.program_id ? {
-          id: course.program_id._id || course.program_id,
-          _id: course.program_id._id || course.program_id,
-          name: course.program_id.name || 'Unknown',
-          code: course.program_id.code || 'Unknown'
-        } : null,
-        faculty: faculty,
-        department: department,
-        facultyId: faculty,
-        departmentId: department,
-        description: course.description,
-        credits: course.credits,
-        semester: course.semester,
-        programYear: course.programYear,
-        status: course.status
-      };
-      
-      processedCourses.push(processedCourse);
     }
     
-    console.log(`Processed ${processedCourses.length} courses with detailed information`);
+    console.log(`Successfully processed ${processedCourses.length} courses with detailed information`);
     res.json(processedCourses);
   } catch (err) {
     console.error('Error fetching detailed courses:', err);
-    res.status(500).json({ msg: 'Server Error', error: err.message });
+    res.status(500).json({ 
+      msg: 'Server Error', 
+      error: err.message,
+      errorDetails: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+});
+
+// Delete a user
+router.delete("/users/:id", protect, adminMiddleware, async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({ msg: "❌ User not found" });
+    }
+
+    res.json({ msg: `✅ ${user.role} removed successfully` });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
 });
 
