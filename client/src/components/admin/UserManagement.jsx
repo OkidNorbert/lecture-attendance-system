@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  DialogContentText,
   IconButton,
   Select,
   MenuItem,
@@ -40,7 +41,8 @@ import {
   Checkbox,
   Menu,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  FormControlLabel
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -54,7 +56,9 @@ import {
   Cancel as CancelIcon,
   Block as BlockIcon,
   FileDownload as FileDownloadIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  ViewModule as GridIcon,
+  ViewList as ViewListIcon
 } from '@mui/icons-material';
 
 // Import our responsive components
@@ -67,6 +71,7 @@ const UserManagement = () => {
   const [error, setError] = useState('');
   const [courses, setCourses] = useState([]);
   const [programs, setPrograms] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -96,6 +101,10 @@ const UserManagement = () => {
   const [order, setOrder] = useState('asc');
   const [anchorEl, setAnchorEl] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [departmentCourses, setDepartmentCourses] = useState([]);
+  const [selectedUserName, setSelectedUserName] = useState('');
+  const [courseSearch, setCourseSearch] = useState('');
+  const [showAllCourses, setShowAllCourses] = useState(false);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -105,6 +114,7 @@ const UserManagement = () => {
     fetchUsers();
     fetchCourses();
     fetchPrograms();
+    fetchDepartments();
     fetchEnrollments();
     
     // Auto switch to grid view on mobile or landscape orientation
@@ -122,6 +132,11 @@ const UserManagement = () => {
       if (!token) {
         throw new Error('No authentication token found');
       }
+      
+      // Make sure programs are loaded
+      if (programs.length === 0) {
+        await fetchPrograms();
+      }
 
       const response = await axios.get('http://localhost:5000/api/admin/users', {
         headers: {
@@ -130,9 +145,21 @@ const UserManagement = () => {
         }
       });
 
+      // Process user data to ensure we have proper display info
+      const processedUsers = response.data.map(user => {
+        // For students, add program name if it's available
+        if (user.role === 'student' && user.program_id && !user.program) {
+          const program = programs.find(p => p._id === user.program_id);
+          if (program) {
+            return { ...user, program: program.name };
+          }
+        }
+        return user;
+      });
+
       // Separate approved and unapproved users
-      const approvedUsers = response.data.filter(user => user.isApproved);
-      const notApprovedUsers = response.data.filter(user => !user.isApproved);
+      const approvedUsers = processedUsers.filter(user => user.isApproved);
+      const notApprovedUsers = processedUsers.filter(user => !user.isApproved);
       
       setUsers(approvedUsers);
       setUnapprovedUsers(notApprovedUsers);
@@ -183,6 +210,22 @@ const UserManagement = () => {
     }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('http://localhost:5000/api/admin/departments', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      setDepartments(response.data);
+    } catch (err) {
+      console.error('Error fetching departments:', err);
+      setError('Failed to load departments');
+    }
+  };
+
   const fetchEnrollments = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -198,34 +241,115 @@ const UserManagement = () => {
     }
   };
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    
+    // If changing role, reset role-specific fields
+    if (name === 'role') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        // Reset role-specific fields when changing roles
+        department: '',
+        program: '',
+        semester: '',
+        programYear: 1,
+        // Keep courses array but clear it
+        courses: []
+      }));
+      
+      // Reset program courses if changing away from student
+      if (value !== 'student') {
+        setProgramCourses([]);
+      }
+      
+      // Reset department courses if changing away from lecturer
+      if (value !== 'lecturer') {
+        setDepartmentCourses([]);
+      }
+    } else if (name === 'courses') {
+      // Special handling for courses array
+      setFormData(prev => ({
+        ...prev,
+        courses: value
+      }));
+    } else if (name === 'department' && formData.role === 'lecturer') {
+      // If department is changed for a lecturer, update department courses
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        // Clear previously selected courses when department changes
+        courses: [],
+        // Reset course search when department changes
+        courseSearch: ''
+      }));
+      
+      // Reset showAllCourses when department changes
+      setShowAllCourses(false);
+      
+      // Only fetch department courses if a valid department is selected
+      if (value) {
+        fetchDepartmentCourses(value);
+      } else {
+        // Clear department courses if no department is selected
+        setDepartmentCourses([]);
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+    
+    // If changing program, fetch courses for that program
+    if (name === 'program' && value) {
+      handleProgramChange(value);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // Validate for lecturers that selected courses
+      if (formData.role === 'lecturer') {
+        if (!formData.courses || formData.courses.length === 0) {
+          setError('Please select at least one course for the lecturer');
+          setLoading(false);
+          return;
+        }
+      }
+
       const userData = {
-        ...formData,
-        name: `${formData.first_name} ${formData.last_name}`
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        role: formData.role,
+        password: formData.password || undefined,
       };
 
       // Add role-specific fields
       if (formData.role === 'lecturer') {
         userData.department = formData.department;
+        userData.courses = formData.courses;
       } else if (formData.role === 'student') {
         userData.program_id = formData.program;
-      }
-      
-      // Include other fields that might be used
-      if (formData.password) {
-        userData.password = formData.password;
+        userData.semester = formData.semester;
+        userData.programYear = formData.programYear;
       }
 
-      // Create user
-      const endpoint = formData.role === 'lecturer' 
-        ? 'http://localhost:5000/api/admin/register-lecturer'
-        : 'http://localhost:5000/api/admin/register-student';
-        
-      const userResponse = await axios.post(
+      console.log('Submitting user data:', userData);
+
+      // Create user based on role
+      const endpoint = 'http://localhost:5000/api/auth/register';
+      
+      const response = await axios.post(
         endpoint,
         userData,
         {
@@ -236,106 +360,24 @@ const UserManagement = () => {
         }
       );
 
-      const newUser = userResponse.data;
+      const newUser = response.data.user || response.data;
+      console.log('New user created:', newUser);
 
-      // For students: Automatically enroll in all courses of the selected program
-      if (formData.role === 'student' && formData.program) {
-        // Get all courses for the selected program
-        const programCoursesResponse = await axios.get(
-          `http://localhost:5000/api/courses?program_id=${formData.program}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-        
-        const programCourses = programCoursesResponse.data;
-        
-        // For each course in the program, create an enrollment
-        for (const course of programCourses) {
-          // Find a lecturer for this course
-          let lecturerId;
-          
-          if (course.lecturers && course.lecturers.length > 0) {
-            // Use the first lecturer assigned to the course
-            lecturerId = course.lecturers[0];
-          } else {
-            // Try to find any lecturer
-            const lecturersResponse = await axios.get(
-              'http://localhost:5000/api/users?role=lecturer',
-              {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                }
-              }
-            );
-            
-            if (lecturersResponse.data.length > 0) {
-              lecturerId = lecturersResponse.data[0]._id;
-            } else {
-              console.error(`No lecturer found for course ${course._id}`);
-              continue; // Skip this enrollment
-            }
-          }
-          
-          // Create enrollment
-          await axios.post(
-            'http://localhost:5000/api/enrollments',
-            {
-              studentId: newUser._id,
-              courseId: course._id,
-              lecturerId,
-              programId: formData.program,
-              semester: formData.semester,
-              programYear: formData.programYear
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
+      // For lecturers: Assign them to selected courses if any were selected
+      if (formData.role === 'lecturer' && formData.courses && formData.courses.length > 0) {
+        // Create enrollments for lecturer with courses
+        // The server already assigns the lecturer to the courses during registration
+        // This step is now only needed for tracking academic year
+        const lecturerId = newUser.id || newUser._id;
+        if (!lecturerId) {
+          console.error('Failed to get lecturer ID from response:', newUser);
+          throw new Error('Could not determine lecturer ID for enrollment');
         }
-      } 
-      // For lecturers: Assign them to selected courses
-      else if (formData.role === 'lecturer' && formData.courses.length > 0) {
+        
         for (const courseId of formData.courses) {
-          // Update course to add lecturer
-          await axios.put(
-            `http://localhost:5000/api/courses/${courseId}/lecturers`,
-            {
-              lecturerId: newUser._id
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-          
-          // Get students enrolled in this course
-          const enrollmentsResponse = await axios.get(
-            `http://localhost:5000/api/enrollments?courseId=${courseId}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-          
-          // Update enrollments to include this lecturer
-          for (const enrollment of enrollmentsResponse.data) {
-            await axios.put(
-              `http://localhost:5000/api/enrollments/${enrollment._id}`,
-              {
-                lecturerId: newUser._id
-              },
+          try {
+            await axios.post(`http://localhost:5000/api/admin/lecturers/${lecturerId}/enroll/${courseId}`, 
+              { academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1) },
               {
                 headers: {
                   'Authorization': `Bearer ${token}`,
@@ -343,11 +385,13 @@ const UserManagement = () => {
                 }
               }
             );
+          } catch (err) {
+            console.error(`Failed to assign lecturer to course ${courseId}:`, err);
           }
         }
       }
 
-      setUsers([...users, newUser]);
+      // Reset form
       setFormData({
         first_name: '',
         last_name: '',
@@ -356,16 +400,18 @@ const UserManagement = () => {
         password: '',
         program: '',
         courses: [],
+        department: '',
         semester: '',
         programYear: 1
       });
-      setError('');
-      
-      // Refresh enrollments after creating new users and enrollments
+
+      // Show success and refresh users
+      setSuccess('User created successfully');
+      fetchUsers();
       fetchEnrollments();
-      
     } catch (err) {
-      setError(err.response?.data?.msg || 'Error creating user and enrollments');
+      console.error('Error creating user:', err);
+      setError(err.response?.data?.message || 'Error creating user');
     } finally {
       setLoading(false);
     }
@@ -405,21 +451,82 @@ const UserManagement = () => {
           }
         }
       );
+      
+      // For lecturers: Update course assignments if role is lecturer
+      if (formData.role === 'lecturer') {
+        // Get current lecturer enrollments
+        const enrollmentsResponse = await axios.get(
+          `http://localhost:5000/api/lecturers/${editingUser._id}/enrollments`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        const currentEnrollments = enrollmentsResponse.data || [];
+        const currentCourseIds = currentEnrollments.map(e => e.courseId);
+        
+        // Determine which courses to add and which to remove
+        const coursesToAdd = formData.courses.filter(c => !currentCourseIds.includes(c));
+        const coursesToRemove = currentEnrollments.filter(e => !formData.courses.includes(e.courseId));
+        
+        // Add new course enrollments
+        for (const courseId of coursesToAdd) {
+          try {
+            await axios.post(
+              `http://localhost:5000/api/admin/lecturers/${editingUser._id}/enroll/${courseId}`,
+              { academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1) },
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+          } catch (err) {
+            console.error(`Failed to add lecturer to course ${courseId}:`, err);
+          }
+        }
+        
+        // Remove course enrollments that were deselected
+        for (const enrollment of coursesToRemove) {
+          try {
+            await axios.delete(
+              `http://localhost:5000/api/admin/lecturers/${editingUser._id}/enroll/${enrollment.courseId}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+          } catch (err) {
+            console.error(`Failed to remove lecturer from course ${enrollment.courseId}:`, err);
+          }
+        }
+      }
 
-      // Refresh users list
+      // Refresh users list and enrollments
       await fetchUsers();
+      await fetchEnrollments();
       setOpenDialog(false);
       setSuccess('User updated successfully');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
+      console.error('Error updating user:', err);
       setError(err.response?.data?.msg || 'Failed to update user');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, name) => {
     setSelectedUserId(id);
+    if (name) {
+      setSelectedUserName(name);
+    }
     setDeleteConfirmOpen(true);
   };
 
@@ -456,10 +563,12 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
       setDeleteConfirmOpen(false);
+      setSelectedUserId(null);
+      setSelectedUserName('');
     }
   };
 
-  const handleEdit = (user) => {
+  const handleEdit = async (user) => {
     setEditingUser(user);
     
     // Set initial form data
@@ -472,7 +581,8 @@ const UserManagement = () => {
       program: user.program_id || user.program || '',
       courses: user.courses?.map(course => (typeof course === 'object' ? course._id : course)) || [],
       semester: user.semester || '',
-      programYear: user.programYear || 1
+      programYear: user.programYear || 1,
+      department: user.department || ''
     };
     
     setFormData(initialFormData);
@@ -480,6 +590,30 @@ const UserManagement = () => {
     // If user is a student and has a program, fetch the program courses
     if (user.role === 'student' && (user.program_id || user.program)) {
       handleProgramChange(user.program_id || user.program);
+    }
+    
+    // If user is a lecturer, fetch their course enrollments
+    if (user.role === 'lecturer') {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`http://localhost:5000/api/lecturers/${user._id}/enrollments`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        // Extract course IDs from enrollments
+        const courseIds = response.data.map(enrollment => enrollment.courseId);
+        
+        // Update form data with the lecturer's courses
+        setFormData(prev => ({
+          ...prev,
+          courses: courseIds
+        }));
+      } catch (error) {
+        console.error('Error fetching lecturer courses:', error);
+      }
     }
     
     setOpenDialog(true);
@@ -499,6 +633,8 @@ const UserManagement = () => {
       programYear: 1
     });
     setEditingUser(null);
+    setCourseSearch('');
+    setShowAllCourses(false);
   };
 
   // Get role color for chips
@@ -545,6 +681,84 @@ const UserManagement = () => {
       }
     } else {
       setProgramCourses([]);
+    }
+  };
+
+  // Add function to fetch courses for the selected department
+  const fetchDepartmentCourses = async (departmentId) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
+      // Fetch all courses
+      const response = await axios.get('http://localhost:5000/api/courses', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Fetch the department to get associated program IDs
+      const departmentResponse = await axios.get(`http://localhost:5000/api/admin/departments/${departmentId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Get programs associated with this department
+      const programIds = departmentResponse.data.programs || [];
+      
+      // Filter courses that belong to the department's programs
+      let filteredCourses = [];
+      if (programIds.length > 0) {
+        filteredCourses = response.data.filter(course => 
+          course.program_id && programIds.includes(course.program_id)
+        );
+      }
+      
+      console.log(`Found ${filteredCourses.length} courses for department ${departmentId} with programs:`, programIds);
+      
+      // If no courses were found through department-program relationship,
+      // just show all courses to ensure users can select something
+      if (filteredCourses.length === 0) {
+        console.log('No courses found for department via programs. Using all courses instead.');
+        setDepartmentCourses(response.data);
+        
+        // Optional: Show a warning to the user
+        setSuccess('No specific courses found for this department. Showing all available courses.');
+      } else {
+        setDepartmentCourses(filteredCourses);
+      }
+      
+      // Clear any previous course selections when department changes
+      setFormData(prev => ({
+        ...prev,
+        courses: [] // Clear course selections
+      }));
+    } catch (error) {
+      console.error('Error fetching department courses:', error);
+      setError('Failed to load courses for this department. Using all courses instead.');
+      
+      // Attempt to use all courses as a fallback
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('http://localhost:5000/api/courses', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        setDepartmentCourses(response.data);
+      } catch (err) {
+        console.error('Failed to get all courses as fallback:', err);
+        setDepartmentCourses([]);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -610,7 +824,7 @@ const UserManagement = () => {
               </IconButton>
               <IconButton 
                 size="small" 
-                onClick={() => handleDelete(user._id)}
+                onClick={() => handleDelete(user._id, user.name)}
                 color="error"
               >
                 <DeleteIcon fontSize="small" />
@@ -689,7 +903,13 @@ const UserManagement = () => {
                   size="small"
                 />
               </TableCell>
-              <TableCell>{user.program || '-'}</TableCell>
+              <TableCell>
+                {user.program_id ? (
+                  programs.find(p => p._id === user.program_id)?.name || user.program || '-'
+                ) : (
+                  user.program || '-'
+                )}
+              </TableCell>
               <TableCell>{user.semester || '-'}</TableCell>
               <TableCell>{user.programYear || '-'}</TableCell>
               <TableCell>
@@ -722,7 +942,7 @@ const UserManagement = () => {
                   <Tooltip title="Delete">
                     <IconButton
                       size="small"
-                      onClick={() => handleDelete(user._id)}
+                      onClick={() => handleDelete(user._id, user.name)}
                       color="error"
                     >
                       <DeleteIcon />
@@ -767,8 +987,38 @@ const UserManagement = () => {
       // Update local state
       const userToApprove = unapprovedUsers.find(user => user._id === userId);
       if (userToApprove) {
-        setUnapprovedUsers(unapprovedUsers.filter(user => user._id !== userId));
-        setUsers([...users, {...userToApprove, isApproved: true}]);
+        // Format program info for display
+        let userWithUpdatedInfo = {...userToApprove, isApproved: true};
+        
+        // If student with program_id, get the program name
+        if (userToApprove.role === 'student' && userToApprove.program_id) {
+          const program = programs.find(p => p._id === userToApprove.program_id);
+          if (program) {
+            userWithUpdatedInfo.program = program.name;
+          } else {
+            // If programs not loaded or program not found, fetch it
+            try {
+              const programResponse = await axios.get(`http://localhost:5000/api/programs/${userToApprove.program_id}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (programResponse.data) {
+                userWithUpdatedInfo.program = programResponse.data.name;
+              }
+            } catch (error) {
+              console.error('Error fetching program details:', error);
+            }
+          }
+        }
+        
+        setUnapprovedUsers(prev => prev.filter(user => user._id !== userId));
+        setUsers(prev => [...prev, userWithUpdatedInfo]);
+        
+        // Show success message
+        setSuccess('User approved successfully');
       }
       
       setError('');
@@ -801,7 +1051,11 @@ const UserManagement = () => {
   // Render pending approvals section
   const renderPendingApprovals = () => {
     if (unapprovedUsers.length === 0) {
-      return null;
+      return (
+        <Paper sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="h6">No pending approvals</Typography>
+        </Paper>
+      );
     }
     
     return (
@@ -843,14 +1097,26 @@ const UserManagement = () => {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="success"
-                        onClick={() => approveUser(user._id)}
-                      >
-                        Approve
-                      </Button>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="success"
+                          onClick={() => approveUser(user._id)}
+                          startIcon={<CheckCircleIcon />}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="error"
+                          onClick={() => handleDelete(user._id, `${user.first_name} ${user.last_name}`)}
+                          startIcon={<DeleteIcon />}
+                        >
+                          Delete
+                        </Button>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1026,6 +1292,25 @@ const UserManagement = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchUsers(),
+        fetchCourses(),
+        fetchPrograms(),
+        fetchDepartments(),
+        fetchEnrollments()
+      ]);
+      setSuccess('Data refreshed successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to refresh data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredUsers = users.filter((user) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -1047,262 +1332,374 @@ const UserManagement = () => {
     page * rowsPerPage + rowsPerPage
   );
 
-  return (
-    <ResponsiveAdminContainer title="User Management">
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          User Management
-        </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Box>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setOpenDialog(true)}
-              sx={{ mr: 1 }}
-            >
-              Add New User
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<FileDownloadIcon />}
-              onClick={handleExport}
-            >
-              Export
-            </Button>
-          </Box>
-        </Box>
-      </Box>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {success}
-        </Alert>
-      )}
-
-      {/* Pending approvals section */}
-      {renderPendingApprovals()}
-
-      <ResponsiveFormContainer>
-        <Paper sx={{ p: 3 }}>
-          <form onSubmit={handleSubmit}>
-            <Grid container spacing={2}>
+  // Render form for adding/editing users
+  const renderUserForm = () => (
+    <Paper sx={{ p: 3, mb: 3 }}>
+      <Typography variant="h6" gutterBottom>
+        {editingUser ? 'Edit User' : 'Add User'}
+      </Typography>
+      
+      <form onSubmit={editingUser ? handleUpdate : handleSubmit}>
+        <Grid container spacing={2}>
+          {/* Basic user info - shown for all roles */}
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="First Name"
+              name="first_name"
+              value={formData.first_name}
+              onChange={handleChange}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Last Name"
+              name="last_name"
+              value={formData.last_name}
+              onChange={handleChange}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              required={!editingUser}
+              helperText={editingUser ? "Leave blank to keep current password" : ""}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>Role</InputLabel>
+              <Select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                label="Role"
+                required
+              >
+                <MenuItem value="student">Student</MenuItem>
+                <MenuItem value="lecturer">Lecturer</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        
+          {/* Student-specific fields */}
+          {formData.role === 'student' && (
+            <>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="First Name"
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Last Name"
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  helperText={editingUser ? "Leave blank to keep current password" : "Required for new users"}
-                  required={!editingUser}
-                />
-              </Grid>
-              <Grid item xs={12}>
                 <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
+                  <InputLabel>Program</InputLabel>
                   <Select
-                    value={formData.role}
-                    label="Role"
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    name="program"
+                    value={formData.program}
+                    onChange={handleChange}
+                    label="Program"
                     required
                   >
-                    <MenuItem value="student">Student</MenuItem>
-                    <MenuItem value="lecturer">Lecturer</MenuItem>
-                    <MenuItem value="admin">Admin</MenuItem>
+                    <MenuItem value="">Select Program</MenuItem>
+                    {programs.map(program => (
+                      <MenuItem key={program._id} value={program._id}>
+                        {program.name} ({program.code})
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
               </Grid>
-              
-              {(formData.role === 'student' || formData.role === 'lecturer') && (
-                <>
-                  <Grid item xs={12}>
-                    <FormControl fullWidth>
-                      <InputLabel>Program</InputLabel>
-                      <Select
-                        value={formData.program}
-                        label="Program"
-                        onChange={(e) => handleProgramChange(e.target.value)}
-                        required
-                      >
-                        {programs.map((program) => (
-                          <MenuItem key={program._id} value={program._id}>
-                            {program.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  
-                  {/* Show program courses for students in edit form */}
-                  {formData.role === 'student' && formData.program && programCourses.length > 0 && (
-                    <Grid item xs={12}>
-                      <Paper sx={{ p: 2 }}>
-                        <Typography variant="subtitle2" gutterBottom>
-                          Student will be enrolled in these courses:
-                        </Typography>
-                        <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
-                          {programCourses.map(course => (
-                            <Box 
-                              key={course._id} 
-                              sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center',
-                                py: 0.5
-                              }}
-                            >
-                              <Chip 
-                                size="small" 
-                                label={course.course_code} 
-                                color="primary" 
-                                sx={{ mr: 1 }} 
-                              />
-                              <Typography variant="body2">
-                                {course.course_name}
-                              </Typography>
-                            </Box>
-                          ))}
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  )}
-                  
-                  {/* For lecturers, allow selecting courses */}
-                  {formData.role === 'lecturer' && (
-                    <Grid item xs={12}>
-                      <Autocomplete
-                        multiple
-                        options={courses}
-                        getOptionLabel={(option) => `${option.course_code} - ${option.course_name}`}
-                        value={courses.filter(course => formData.courses.includes(course._id))}
-                        onChange={(_, newValue) => {
-                          setFormData({
-                            ...formData,
-                            courses: newValue.map(course => course._id)
-                          });
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="Courses"
-                            required
-                          />
-                        )}
-                      />
-                    </Grid>
-                  )}
-                  
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth required>
-                      <InputLabel>Semester</InputLabel>
-                      <Select
-                        value={formData.semester}
-                        label="Semester"
-                        onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                      >
-                        <MenuItem value="1">Semester 1</MenuItem>
-                        <MenuItem value="2">Semester 2</MenuItem>
-                        <MenuItem value="3">Semester 3</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                      <InputLabel>Program Year</InputLabel>
-                      <Select
-                        value={formData.programYear}
-                        label="Program Year"
-                        onChange={(e) => setFormData({ ...formData, programYear: e.target.value })}
-                      >
-                        <MenuItem value={1}>Year 1</MenuItem>
-                        <MenuItem value={2}>Year 2</MenuItem>
-                        <MenuItem value={3}>Year 3</MenuItem>
-                        <MenuItem value={4}>Year 4</MenuItem>
-                        <MenuItem value={5}>Year 5</MenuItem>
-                        <MenuItem value={6}>Year 6</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                </>
-              )}
-              
-              <Grid item xs={12}>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  color="primary"
-                  disabled={loading}
-                  fullWidth
-                >
-                  {loading ? <CircularProgress size={24} /> : 'Create User'}
-                </Button>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Semester</InputLabel>
+                  <Select
+                    name="semester"
+                    value={formData.semester}
+                    onChange={handleChange}
+                    label="Semester"
+                    required
+                  >
+                    <MenuItem value="">Select Semester</MenuItem>
+                    <MenuItem value="1">Semester 1</MenuItem>
+                    <MenuItem value="2">Semester 2</MenuItem>
+                    <MenuItem value="3">Semester 3</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
-            </Grid>
-          </form>
-        </Paper>
-      </ResponsiveFormContainer>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Program Year"
+                  name="programYear"
+                  type="number"
+                  value={formData.programYear}
+                  onChange={handleChange}
+                  InputProps={{ inputProps: { min: 1, max: 6 } }}
+                  required
+                />
+              </Grid>
+            </>
+          )}
+          
+          {/* Lecturer-specific fields */}
+          {formData.role === 'lecturer' && (
+            <>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    name="department"
+                    value={formData.department || ''}
+                    onChange={handleChange}
+                    label="Department"
+                  >
+                    <MenuItem value="">Select Department</MenuItem>
+                    {departments.map(department => (
+                      <MenuItem key={department._id} value={department._id}>
+                        {department.name} ({department.code})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Courses</InputLabel>
+                  <Select
+                    name="courses"
+                    multiple
+                    value={formData.courses || []}
+                    onChange={(e) => setFormData({ ...formData, courses: e.target.value })}
+                    label="Courses"
+                    endAdornment={
+                      formData.courses?.length > 0 ? (
+                        <Chip
+                          size="small"
+                          label={`${formData.courses.length} selected`}
+                          color="primary"
+                          sx={{ mr: 2 }}
+                        />
+                      ) : null
+                    }
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((courseId) => {
+                          const course = courses.find(c => c._id === courseId);
+                          return (
+                            <Chip 
+                              key={courseId} 
+                              label={course ? `${course.course_code} - ${course.course_name}` : courseId} 
+                              size="small"
+                              onDelete={(e) => {
+                                e.stopPropagation(); // Prevent the select dropdown from opening
+                                const updatedCourses = formData.courses.filter(id => id !== courseId);
+                                setFormData(prev => ({
+                                  ...prev,
+                                  courses: updatedCourses
+                                }));
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()} // Prevent select from opening on chip click
+                            />
+                          );
+                        })}
+                      </Box>
+                    )}
+                  >
+                    <Box sx={{ p: 1, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1 }}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        placeholder="Search courses..."
+                        value={courseSearch}
+                        onChange={(e) => setCourseSearch(e.target.value)}
+                        InputProps={{
+                          startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />,
+                          endAdornment: courseSearch ? (
+                            <IconButton size="small" onClick={() => setCourseSearch('')}>
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          ) : null
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={showAllCourses}
+                              onChange={(e) => setShowAllCourses(e.target.checked)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          }
+                          label={<Typography variant="caption">Show all courses</Typography>}
+                          sx={{ m: 0 }}
+                        />
+                      </Box>
+                    </Box>
+                    {courses
+                      .filter(course => 
+                        course.course_code?.toLowerCase().includes(courseSearch.toLowerCase()) || 
+                        course.course_name?.toLowerCase().includes(courseSearch.toLowerCase())
+                      )
+                      .map(course => (
+                        <MenuItem key={course._id} value={course._id}>
+                          {course.course_code} - {course.course_name}
+                        </MenuItem>
+                      ))
+                    }
+                  </Select>
+                </FormControl>
+                <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
+                    {`Showing all ${courses.length} available courses. Use the search box to find specific courses.`}
+                  </Typography>
+                  {formData.courses && formData.courses.length > 0 && (
+                    <Button 
+                      size="small" 
+                      variant="outlined" 
+                      color="error" 
+                      onClick={() => setFormData(prev => ({ ...prev, courses: [] }))}
+                      startIcon={<CancelIcon />}
+                    >
+                      Clear All Courses
+                    </Button>
+                  )}
+                </Box>
+              </Grid>
+            </>
+          )}
+          
+          <Grid item xs={12}>
+            <Button 
+              type="submit" 
+              variant="contained" 
+              color="primary"
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={24} /> : (editingUser ? 'Update User' : 'Add User')}
+            </Button>
+            {editingUser && (
+              <Button
+                sx={{ ml: 2 }}
+                variant="outlined"
+                onClick={() => setOpenDialog(false)}
+              >
+                Cancel
+              </Button>
+            )}
+          </Grid>
+        </Grid>
+      </form>
+    </Paper>
+  );
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'center' }}>
-        <Typography variant="subtitle1" component="div">
-          Total Users: {users.length}
-        </Typography>
-        {!isMobile && !isLandscape && (
-          <Button 
-            variant="outlined" 
-            size="small"
-            onClick={toggleView}
-          >
-            Switch to {viewMode === 'table' ? 'Grid' : 'Table'} View
-          </Button>
-        )}
-      </Box>
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
+  return (
+    <Box sx={{ position: 'relative' }}>
+      {(success || error) && (
+        <Box sx={{ mb: 2 }}>
+          {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
+          {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
         </Box>
-      ) : (
-        viewMode === 'table' ? renderTableView() : renderGridView()
       )}
 
-      {/* Edit User Dialog */}
+      <Tabs
+        value={activeTab}
+        onChange={(e, newValue) => setActiveTab(newValue)}
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab label="User Management" />
+        <Tab label="Pending Approvals" 
+          icon={unapprovedUsers.length ? <Chip size="small" label={unapprovedUsers.length} color="error" /> : null}
+          iconPosition="end"
+        />
+      </Tabs>
+
+      {activeTab === 0 && (
+        <>
+          {/* User Form */}
+          {renderUserForm()}
+          
+          {/* Search and Action Toolbar */}
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+            <Typography variant="h6" component="div">
+              Users ({users.length})
+            </Typography>
+            
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <TextField
+                placeholder="Search users..."
+                size="small"
+                value={searchTerm}
+                onChange={handleSearch}
+                InputProps={{
+                  startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                }}
+                sx={{ minWidth: 200 }}
+              />
+              
+              <Button 
+                variant="outlined"
+                startIcon={viewMode === 'table' ? <GridIcon /> : <ViewListIcon />} 
+                onClick={toggleView}
+                size="small"
+              >
+                {viewMode === 'table' ? 'Grid View' : 'Table View'}
+              </Button>
+              
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={handleRefresh}
+                startIcon={<RefreshIcon />}
+                size="small"
+              >
+                Refresh
+              </Button>
+              
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={() => handleExport()}
+                startIcon={<FileDownloadIcon />}
+                size="small"
+              >
+                Export
+              </Button>
+            </Box>
+          </Box>
+          
+          {/* User List Display (Table or Grid) */}
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : viewMode === 'table' ? renderTableView() : renderGridView()}
+        </>
+      )}
+
+      {activeTab === 1 && renderPendingApprovals()}
+
+      {/* Dialogs */}
       <Dialog open={openDialog} onClose={handleDialogClose} maxWidth="md" fullWidth>
         <DialogTitle>
-          {editingUser ? 'Edit User' : 'Add New User'}
+          {editingUser ? 'Edit User' : 'Add User'}
           <IconButton
             aria-label="close"
             onClick={handleDialogClose}
@@ -1312,175 +1709,29 @@ const UserManagement = () => {
           </IconButton>
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="First Name"
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Last Name"
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  helperText={editingUser ? "Leave blank to keep current password" : "Required for new users"}
-                  required={!editingUser}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={formData.role}
-                    label="Role"
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    required
-                  >
-                    <MenuItem value="student">Student</MenuItem>
-                    <MenuItem value="lecturer">Lecturer</MenuItem>
-                    <MenuItem value="admin">Admin</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              {formData.role === 'student' && (
-                <>
-                  <Grid item xs={12}>
-                    <FormControl fullWidth>
-                      <InputLabel>Program</InputLabel>
-                      <Select
-                        value={formData.program}
-                        label="Program"
-                        onChange={(e) => handleProgramChange(e.target.value)}
-                        required
-                      >
-                        {programs.map((program) => (
-                          <MenuItem key={program._id} value={program._id}>
-                            {program.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Semester"
-                      value={formData.semester}
-                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Program Year"
-                      type="number"
-                      value={formData.programYear}
-                      onChange={(e) => setFormData({ ...formData, programYear: e.target.value })}
-                    />
-                  </Grid>
-                </>
-              )}
-            </Grid>
-          </Box>
+          {renderUserForm()}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDialogClose}>Cancel</Button>
-          <Button 
-            onClick={editingUser ? handleUpdate : handleSubmit}
-            variant="contained"
-            color="primary"
-            disabled={loading}
-          >
-            {loading ? <CircularProgress size={24} /> : (editingUser ? 'Update' : 'Add')}
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete this user? This action cannot be undone.
-          </Typography>
+          <DialogContentText>
+            Are you sure you want to delete {selectedUserName ? `user "${selectedUserName}"` : "this user"}? This action cannot be undone.
+          </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-          <Button 
-            onClick={confirmDelete} 
-            color="error" 
-            variant="contained"
-            disabled={loading}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Delete'}
+          <Button onClick={() => setDeleteConfirmOpen(false)} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* More Actions Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
-      >
-        <MenuItem onClick={() => {
-          handleBulkAction('activate');
-          setAnchorEl(null);
-        }}>
-          <ListItemIcon>
-            <CheckCircleIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Activate</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => {
-          handleBulkAction('deactivate');
-          setAnchorEl(null);
-        }}>
-          <ListItemIcon>
-            <BlockIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Deactivate</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => {
-          handleDelete(selectedUserId);
-          setAnchorEl(null);
-        }}>
-          <ListItemIcon>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Delete</ListItemText>
-        </MenuItem>
-      </Menu>
-
-      {/* Enrollments Dialog */}
       {viewingEnrollments && renderEnrollmentsDialog()}
-    </ResponsiveAdminContainer>
+    </Box>
   );
 };
 

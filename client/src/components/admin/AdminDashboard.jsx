@@ -38,6 +38,7 @@ import {
   BarChart as BarChartIcon,
   Refresh as RefreshIcon,
   Assignment as AssignmentIcon,
+  LocalLibrary as LocalLibraryIcon,
 } from '@mui/icons-material';
 import axios from '../../utils/axios';
 import { Link } from 'react-router-dom';
@@ -58,15 +59,22 @@ import EnrollmentManagement from '../EnrollmentManagement';
 const DashboardContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   height: '100vh',
-  width: '100vw',
-  maxWidth: '100vw',
+  width: '100%',
+  minWidth: '100%',
+  maxWidth: '100%',
   overflow: 'hidden',
   backgroundColor: '#f5f7fb',
   boxSizing: 'border-box',
   margin: 0,
   padding: 0,
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
   [theme.breakpoints.down('sm')]: {
     flexDirection: 'column', // Stack elements vertically on very small screens
+    position: 'absolute',
   },
   '@media (orientation: landscape) and (max-height: 600px)': {
     flexDirection: 'row', // Force row layout in landscape orientation on small height
@@ -75,8 +83,8 @@ const DashboardContainer = styled(Box)(({ theme }) => ({
   },
   // TV and large screens
   '@media (min-width: 1600px)': {
-    maxWidth: '100vw',
-    margin: '0 auto',
+    maxWidth: '100%',
+    width: '100%',
   }
 }));
 
@@ -149,27 +157,23 @@ const ContentArea = styled(Box)(({ theme }) => ({
   [theme.breakpoints.down('md')]: {
     padding: theme.spacing(2),
     width: '100%',
-    maxWidth: '100vw',
   },
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(1),
     height: 'auto',
     minHeight: '50vh',
     width: '100%',
-    maxWidth: '100vw',
   },
   '@media (orientation: landscape) and (max-height: 600px)': {
     height: 'auto',
     minHeight: '100vh',
     padding: theme.spacing(1, 2),
     width: '100%',
-    maxWidth: '100vw',
   },
   // TV and large screens
   '@media (min-width: 1600px)': {
     padding: theme.spacing(4),
     width: '100%',
-    maxWidth: '100vw',
   }
 }));
 
@@ -190,6 +194,13 @@ const AdminDashboard = () => {
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
     
+    // Fix for blank space when zooming
+    document.querySelector('#root').style.width = '100%';
+    document.querySelector('#root').style.maxWidth = '100%';
+    document.querySelector('#root').style.margin = '0';
+    document.querySelector('#root').style.padding = '0';
+    document.querySelector('#root').style.overflow = 'hidden';
+    
     // Cleanup function
     return () => {
       document.documentElement.style.backgroundColor = '';
@@ -204,6 +215,12 @@ const AdminDashboard = () => {
       document.body.style.width = '';
       document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
+      
+      document.querySelector('#root').style.width = '';
+      document.querySelector('#root').style.maxWidth = '';
+      document.querySelector('#root').style.margin = '';
+      document.querySelector('#root').style.padding = '';
+      document.querySelector('#root').style.overflow = '';
     };
   }, []);
 
@@ -277,7 +294,6 @@ const AdminDashboard = () => {
     { label: 'Courses', icon: <BookIcon />, component: <CourseManagement /> },
     { label: 'Enrollments', icon: <AssignmentIcon />, component: <EnrollmentManagement /> },
     { label: 'Attendance', icon: <AssessmentIcon />, component: <AttendanceMonitoring /> },
-    { label: 'Reports', icon: <BarChartIcon />, component: <Reports /> },
   ];
 
   const drawer = (
@@ -636,33 +652,6 @@ const AdminDashboard = () => {
               primaryTypographyProps={{ 
                 fontWeight: activeTab === 7 ? 'bold' : 'regular',
                 color: activeTab === 7 ? '#6a11cb' : 'rgba(0, 0, 0, 0.8)',
-                fontSize: '0.95rem'
-              }}
-            />
-          </ListItem>
-          <ListItem 
-            component="div"
-            disablePadding
-            selected={activeTab === 8} 
-            onClick={(e) => handleTabChange(e, 8)}
-            sx={{ 
-              mb: 1, 
-              borderRadius: 1,
-              borderLeft: activeTab === 8 ? '4px solid #6a11cb' : '4px solid transparent',
-              bgcolor: activeTab === 8 ? 'rgba(106, 17, 203, 0.1)' : 'transparent',
-              '&:hover': {
-                bgcolor: 'rgba(106, 17, 203, 0.05)'
-              }
-            }}
-          >
-            <ListItemIcon sx={{ color: activeTab === 8 ? '#6a11cb' : 'rgba(0, 0, 0, 0.6)' }}>
-              <BarChartIcon />
-            </ListItemIcon>
-            <ListItemText 
-              primary="Reports" 
-              primaryTypographyProps={{ 
-                fontWeight: activeTab === 8 ? 'bold' : 'regular',
-                color: activeTab === 8 ? '#6a11cb' : 'rgba(0, 0, 0, 0.8)',
                 fontSize: '0.95rem'
               }}
             />

@@ -49,6 +49,18 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  program_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Program'
+  },
+  semester: {
+    type: String,
+    default: ''
+  },
+  programYear: {
+    type: Number,
+    default: 1
   }
 }, {
   timestamps: true,
@@ -82,10 +94,6 @@ const Student = User.discriminator('student', new mongoose.Schema({
   user_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  },
-  program_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Program'
   },
   student_id: {
     type: String,

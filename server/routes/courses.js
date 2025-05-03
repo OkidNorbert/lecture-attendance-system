@@ -95,43 +95,55 @@ router.post('/:courseId/assign-lecturer', protect, async (req, res) => {
 // @access  Private (lecturer only)
 router.get('/lecturer', protect, async (req, res) => {
   try {
-    // Verify user is a lecturer
-    if (req.user.role !== 'lecturer') {
-      return res.status(403).json({ msg: 'Not authorized. Lecturer access only.' });
-    }
-
-    // Get lecturer with populated courses
-    const lecturer = await Lecturer.findById(req.user.id);
+    // Extract lecturer ID from the authenticated user
+    const userId = req.user.id || req.user._id;
     
-    if (!lecturer) {
-      return res.status(404).json({ msg: 'Lecturer not found' });
+    console.log(`Fetching courses for lecturer with user ID: ${userId}`);
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User ID not provided in authentication token' 
+      });
     }
 
-    // Get detailed course information
-    const courses = await Course.find({ 
-      _id: { $in: lecturer.taught_courses || [] } 
-    })
-    .populate('program_id', 'name');
+    // Find courses where this lecturer is assigned
+    const courses = await Course.find({
+      lecturers: userId
+    }).populate('program_id', 'name');
 
-    // Extract unique programs for filtering
-    const programs = [...new Set(courses.map(course => course.program_id?.name))].filter(Boolean);
+    console.log(`Found ${courses.length} courses for lecturer with ID: ${userId}`);
 
-    // Format the response
-    const formattedCourses = courses.map(course => ({
-      id: course._id,
-      name: course.course_name,
-      code: course.course_code,
-      program: course.program_id?.name,
-      credits: course.credits
-    }));
+    // Get unique program names from the courses
+    const programNames = [...new Set(
+      courses
+        .filter(course => course.program_id)
+        .map(course => course.program_id.name)
+    )];
 
+    // Send detailed response
     res.json({
-      courses: formattedCourses,
-      programs
+      success: true,
+      courses: courses.map(course => ({
+        id: course._id,
+        name: course.name || course.course_name,
+        code: course.code || course.course_code,
+        program: course.program_id?.name || 'N/A',
+        credits: course.credits,
+        description: course.description || '',
+        enrolledStudents: course.students?.length || 0,
+        createdAt: course.createdAt
+      })),
+      programNames,
+      totalCourses: courses.length
     });
-  } catch (err) {
-    console.error('Error fetching lecturer courses:', err);
-    res.status(500).json({ msg: 'Server Error', error: err.message });
+  } catch (error) {
+    console.error('Error fetching lecturer courses:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error while fetching lecturer courses',
+      error: error.message 
+    });
   }
 });
 
@@ -186,6 +198,44 @@ router.put('/:courseId/lecturers', protect, async (req, res) => {
   } catch (err) {
     console.error('Error assigning lecturer to course:', err);
     res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
+// @route   GET api/courses/:courseId
+// @desc    Get a single course by ID
+// @access  Private (all authenticated users)
+router.get('/:courseId', protect, async (req, res) => {
+  try {
+    const courseId = req.params.courseId;
+    
+    if (!courseId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Course ID is required' 
+      });
+    }
+    
+    console.log(`Fetching course with ID: ${courseId}`);
+    
+    const course = await Course.findById(courseId)
+      .populate('program_id', 'name')
+      .populate('lecturers', 'first_name last_name email');
+      
+    if (!course) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Course not found' 
+      });
+    }
+    
+    res.json(course);
+  } catch (err) {
+    console.error(`Error fetching course: ${err.message}`);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error while fetching course',
+      error: err.message 
+    });
   }
 });
 

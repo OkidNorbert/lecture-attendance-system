@@ -1,10 +1,106 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* Global reset to prevent unwanted spacing */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
+  background-color: #f9fafb;
 }
 
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+body {
+  background-color: #f9fafb;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  width: 100vw !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+/* Animation for refresh icon */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Container styling */
+.container {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  padding: 0;
+  margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .container {
+    padding: 0;
+  }
+}
+
+/* Special handling for admin dashboard to prevent blank space */
+.admin-dashboard-container {
+  width: 100vw;
+  max-width: 100%;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* Fix for lecturer dashboard pages */
+.MuiBox-root {
+  max-width: 100% !important;
+}
+
+/* Fix for dashboard content area */
+.dashboard-content {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Override the default restrictive max-width */
+#root {
+  max-width: 100% !important;
+  width: 100vw !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left;
+  overflow-x: hidden !important;
+}
+
+/* Fix for admin pages */
+.MuiBox-root.admin-dashboard-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Base styles */
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -39,4 +135,95 @@
 
 .read-the-docs {
   color: #888;
+}
+
+/* Specific page container overrides */
+.MuiContainer-root {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1200px) {
+  .MuiContainer-maxWidthLg {
+    max-width: 100% !important;
+  }
+  
+  .MuiContainer-maxWidthMd {
+    max-width: 100% !important;
+  }
+}
+
+/* Fix for admin dashboard specifically - no blank space on zoom */
+@media (min-width: 1px) {
+  .MuiContainer-root.MuiContainer-maxWidthLg,
+  .MuiContainer-root.MuiContainer-maxWidthMd,
+  .MuiContainer-root.MuiContainer-maxWidthXl,
+  .MuiBox-root.admin-dashboard-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: 0;
+    margin-right: 0;
+    overflow-x: hidden;
+  }
+}
+
+/* Fix for attendance and QR code pages */
+.attendance-page,
+.generate-qr-page {
+  width: 100%;
+  max-width: 100%;
+  padding: 0 16px;
+}
+
+@media (min-width: 768px) {
+  .MuiContainer-root {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+/* Specific fix for lecturer dashboard */
+@media screen and (min-width: 1px) {
+  .MuiBox-root {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .MuiPaper-root {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  .MuiContainer-root {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Override Material UI's default width restrictions */
+  .MuiContainer-maxWidthXl,
+  .MuiContainer-maxWidthLg,
+  .MuiContainer-maxWidthMd,
+  .MuiContainer-maxWidthSm,
+  .MuiContainer-maxWidthXs {
+    max-width: 100% !important;
+  }
+}
+
+/* Fix for zooming issues */
+@viewport {
+  width: device-width;
+  zoom: 1.0;
+}
+
+@-ms-viewport {
+  width: device-width;
 }

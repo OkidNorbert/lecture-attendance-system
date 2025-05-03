@@ -4,9 +4,15 @@ const EnrollmentSchema = new mongoose.Schema({
   studentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Student is required'],
+    required: function() {
+      // studentId is required unless enrollmentType is 'lecturer'
+      return this.enrollmentType !== 'lecturer';
+    },
     validate: {
       validator: async function(userId) {
+        // Skip validation if studentId is not provided and it's a lecturer enrollment
+        if (!userId && this.enrollmentType === 'lecturer') return true;
+        
         const user = await mongoose.model('User').findById(userId);
         return user && user.role === 'student';
       },
@@ -34,6 +40,12 @@ const EnrollmentSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Program',
     required: [true, 'Program is required']
+  },
+  // New field to determine the type of enrollment
+  enrollmentType: {
+    type: String,
+    enum: ['student', 'lecturer'],
+    default: 'student'
   },
   semester: {
     type: String,
@@ -71,7 +83,19 @@ const EnrollmentSchema = new mongoose.Schema({
 });
 
 // Ensure unique enrollment for student in a course
-EnrollmentSchema.index({ studentId: 1, courseId: 1, semester: 1, programYear: 1, academicYear: 1 }, { unique: true });
+EnrollmentSchema.index({ 
+  studentId: 1, 
+  courseId: 1, 
+  lecturerId: 1,
+  enrollmentType: 1,
+  semester: 1, 
+  programYear: 1, 
+  academicYear: 1 
+}, { 
+  unique: true,
+  // Make the index sparse so it doesn't require studentId for lecturer enrollments
+  sparse: true
+});
 
 // Pre-save middleware to update lastModified
 EnrollmentSchema.pre('save', function(next) {

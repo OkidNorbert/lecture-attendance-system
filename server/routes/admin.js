@@ -19,7 +19,7 @@ const router = express.Router();
 // 🔹 1️⃣ Register a Lecturer
 router.post("/register-lecturer", protect, adminMiddleware, async (req, res) => {
   try {
-    const { first_name, last_name, email, department, role } = req.body;
+    const { first_name, last_name, email, department, role, courses } = req.body;
 
     let user = await User.findOne({ email });
     if (user) {
@@ -45,6 +45,59 @@ router.post("/register-lecturer", protect, adminMiddleware, async (req, res) => 
 
     await user.save();
 
+    // Handle course enrollments if courses are provided
+    const enrollments = [];
+    if (courses && courses.length > 0) {
+      console.log(`Enrolling lecturer in ${courses.length} courses`);
+      
+      for (const courseInfo of courses) {
+        try {
+          // Extract course information
+          const { courseId, programId } = courseInfo;
+          
+          // Verify course exists
+          const course = await Course.findById(courseId);
+          if (!course) {
+            console.log(`Course ${courseId} not found, skipping enrollment`);
+            continue;
+          }
+          
+          // Verify program exists
+          const program = await Program.findById(programId);
+          if (!program) {
+            console.log(`Program ${programId} not found, skipping enrollment`);
+            continue;
+          }
+          
+          // Create enrollment record
+          const enrollment = new Enrollment({
+            lecturerId: user._id,
+            courseId,
+            programId,
+            semester: courseInfo.semester || course.semester || '1',
+            programYear: courseInfo.programYear || course.programYear || 1,
+            academicYear: courseInfo.academicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+            status: 'enrolled',
+            enrollmentType: 'lecturer' // Set enrollment type to lecturer
+          });
+          
+          await enrollment.save();
+          enrollments.push(enrollment);
+          
+          // Update course to add lecturer
+          await Course.findByIdAndUpdate(
+            courseId,
+            { $addToSet: { lecturers: user._id } }
+          );
+          
+          console.log(`Enrolled lecturer ${user.email} in course ${course.course_name}`);
+        } catch (enrollErr) {
+          console.error(`Error enrolling lecturer in course: ${enrollErr.message}`);
+          // Continue with next course even if this one fails
+        }
+      }
+    }
+
     // Send welcome email with credentials
     try {
       await sendWelcomeEmail(email, tempPassword, `${first_name} ${last_name}`, role);
@@ -58,7 +111,8 @@ router.post("/register-lecturer", protect, adminMiddleware, async (req, res) => 
           email: user.email,
           role: user.role,
           department: user.department
-        }
+        },
+        enrollments: enrollments.length > 0 ? enrollments : undefined
       });
     } catch (emailError) {
       // If email fails, still return success but with the password in response
@@ -73,7 +127,8 @@ router.post("/register-lecturer", protect, adminMiddleware, async (req, res) => 
           email: user.email,
           role: user.role,
           department: user.department
-        }
+        },
+        enrollments: enrollments.length > 0 ? enrollments : undefined
       });
     }
   } catch (err) {
@@ -1348,27 +1403,35 @@ router.get('/users', protect, async (req, res) => {
       return res.status(403).json({ msg: 'Not authorized as admin' });
     }
 
+    console.log('Fetching all users with details...');
+    
     const users = await User.find()
       .select('first_name last_name email role isApproved isActive department program_id semester programYear')
       .populate('department', 'name')
       .populate('program_id', 'name code')
       .sort({ first_name: 1, last_name: 1 });
 
+    console.log(`Found ${users.length} users`);
+    
     // Return consistent user structure
-    const formattedUsers = users.map(user => ({
-      _id: user._id,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      email: user.email,
-      role: user.role,
-      isApproved: user.isApproved,
-      isActive: user.isActive,
-      department: user.department ? user.department.name : null,
-      program: user.program_id ? user.program_id.name : null,
-      program_id: user.program_id ? user.program_id._id : null,
-      semester: user.semester || null,
-      programYear: user.programYear || null
-    }));
+    const formattedUsers = users.map(user => {
+      console.log(`Processing user: ${user.email}, Program: ${user.program_id?.name || 'None'}, Semester: ${user.semester || 'None'}, Year: ${user.programYear || 'None'}`);
+      
+      return {
+        _id: user._id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        role: user.role,
+        isApproved: user.isApproved,
+        isActive: user.isActive,
+        department: user.department ? user.department.name : null,
+        program: user.program_id ? user.program_id.name : null,
+        program_id: user.program_id ? user.program_id._id : null,
+        semester: user.semester || null,
+        programYear: user.programYear || null
+      };
+    });
 
     res.json(formattedUsers);
   } catch (err) {
@@ -2327,7 +2390,11 @@ router.put("/users/:id", protect, adminMiddleware, async (req, res) => {
     user.email = email;
     user.role = role;
 
-    // Update role-specific fields
+    // Update program, semester and programYear for all users (not just students)
+    if (program_id) user.program_id = program_id;
+    if (semester !== undefined) user.semester = semester;
+    if (programYear !== undefined) user.programYear = programYear;
+
     // Update password if provided
     if (password && password.trim() !== '') {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -2337,7 +2404,9 @@ router.put("/users/:id", protect, adminMiddleware, async (req, res) => {
     await user.save();
 
     // Return updated user without password
-    const updatedUser = await User.findById(req.params.id).select('-password_hash');
+    const updatedUser = await User.findById(req.params.id)
+      .select('-password_hash')
+      .populate('program_id', 'name code');
 
     console.log('User updated:', updatedUser);
     res.json(updatedUser);
@@ -2476,7 +2545,7 @@ router.get('/attendance-analytics', protect, adminMiddleware, async (req, res) =
 // Register a Student (New route for student registration)
 router.post("/register-student", protect, adminMiddleware, async (req, res) => {
   try {
-    const { first_name, last_name, email, program_id } = req.body;
+    const { first_name, last_name, email, program_id, semester, programYear } = req.body;
 
     // Check if user already exists
     let user = await User.findOne({ email });
@@ -2500,6 +2569,8 @@ router.post("/register-student", protect, adminMiddleware, async (req, res) => {
       role: 'student',
       program_id,
       student_id: studentId,
+      semester: semester || '1', // Default to semester 1 if not provided
+      programYear: programYear || 1, // Default to year 1 if not provided
       isApproved: true
     });
 
@@ -2587,29 +2658,34 @@ router.post("/register-student", protect, adminMiddleware, async (req, res) => {
 router.put("/users/:userId/approve", protect, adminMiddleware, async (req, res) => {
   try {
     const userId = req.params.userId;
+    console.log('Approving user with ID:', userId);
     
-    // Check if user exists
-    const user = await User.findById(userId);
-    if (!user) {
+    // Use findByIdAndUpdate to avoid schema validation issues with discriminators
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { isApproved: true },
+      { new: true }
+    );
+    
+    if (!updatedUser) {
       return res.status(404).json({ msg: "❌ User not found" });
     }
     
-    // Update user approval status
-    user.isApproved = true;
-    await user.save();
+    console.log('User approved successfully:', updatedUser.email);
     
     res.status(200).json({ 
       msg: "✅ User approved successfully",
       user: {
-        id: user._id,
-        email: user.email,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        role: user.role,
-        isApproved: user.isApproved
+        id: updatedUser._id,
+        email: updatedUser.email,
+        first_name: updatedUser.first_name,
+        last_name: updatedUser.last_name,
+        role: updatedUser.role,
+        isApproved: updatedUser.isApproved
       }
     });
   } catch (err) {
+    console.error('Error approving user:', err);
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
 });
@@ -2745,6 +2821,337 @@ router.delete("/users/:id", protect, adminMiddleware, async (req, res) => {
     res.json({ msg: `✅ ${user.role} removed successfully` });
   } catch (err) {
     console.error('Error deleting user:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Get enrollments for a specific user
+router.get("/users/:userId/enrollments", protect, adminMiddleware, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ msg: "❌ User not found" });
+    }
+    
+    // Get enrollments for this user based on role
+    let enrollments = [];
+    if (user.role === 'student') {
+      enrollments = await Enrollment.find({ studentId: userId })
+        .populate('courseId', 'course_name course_code')
+        .populate('lecturerId', 'first_name last_name email')
+        .populate('programId', 'name code');
+    } else if (user.role === 'lecturer') {
+      enrollments = await Enrollment.find({ lecturerId: userId })
+        .populate('courseId', 'course_name course_code')
+        .populate('studentId', 'first_name last_name email')
+        .populate('programId', 'name code');
+    }
+    
+    // Format the response
+    const formattedEnrollments = enrollments.map(enrollment => ({
+      _id: enrollment._id,
+      course: enrollment.courseId ? {
+        id: enrollment.courseId._id,
+        name: enrollment.courseId.course_name,
+        code: enrollment.courseId.course_code
+      } : null,
+      student: enrollment.studentId ? {
+        id: enrollment.studentId._id,
+        name: `${enrollment.studentId.first_name} ${enrollment.studentId.last_name}`,
+        email: enrollment.studentId.email
+      } : null,
+      lecturer: enrollment.lecturerId ? {
+        id: enrollment.lecturerId._id,
+        name: `${enrollment.lecturerId.first_name} ${enrollment.lecturerId.last_name}`,
+        email: enrollment.lecturerId.email
+      } : null,
+      program: enrollment.programId ? {
+        id: enrollment.programId._id,
+        name: enrollment.programId.name,
+        code: enrollment.programId.code
+      } : null,
+      semester: enrollment.semester,
+      programYear: enrollment.programYear,
+      status: enrollment.status,
+      academicYear: enrollment.academicYear
+    }));
+    
+    res.json(formattedEnrollments);
+  } catch (err) {
+    console.error('Error fetching user enrollments:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Add a new endpoint to update a student's program information
+router.put('/update-student-program/:email', protect, adminMiddleware, async (req, res) => {
+  try {
+    console.log(`Attempting to update student program for email: ${req.params.email}`);
+    
+    const student = await Student.findOne({ email: req.params.email });
+    
+    if (!student) {
+      console.log(`No student found with email: ${req.params.email}`);
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    
+    console.log('Found student:', student);
+    
+    // Update student properties based on request body
+    const { program, semester, programYear } = req.body;
+    
+    if (program) student.program_id = program;
+    if (semester) student.semester = semester;
+    if (programYear) student.programYear = programYear;
+    
+    console.log('Updated student fields:', { 
+      program: student.program_id, 
+      semester: student.semester, 
+      programYear: student.programYear 
+    });
+    
+    await student.save();
+    
+    console.log('Student updated successfully');
+    
+    // Also update these fields in the user document if needed
+    const user = await User.findOne({ email: req.params.email });
+    if (user) {
+      if (program) user.program = program;
+      if (semester) user.semester = semester;
+      if (programYear) user.programYear = programYear;
+      await user.save();
+      console.log('User document also updated');
+    }
+    
+    return res.json({ 
+      message: 'Student program information updated successfully',
+      student
+    });
+  } catch (error) {
+    console.error('Error updating student program:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// 🔹 Enroll lecturer in courses
+router.post("/lecturers/:lecturerId/enroll", protect, adminMiddleware, async (req, res) => {
+  try {
+    console.log('Enrolling lecturer in courses:', req.params.lecturerId);
+    
+    const { courses } = req.body;
+    if (!courses || !Array.isArray(courses) || courses.length === 0) {
+      return res.status(400).json({ 
+        msg: "❌ Please provide an array of courses to enroll the lecturer in",
+        validationErrors: {
+          courses: "Courses array is required"
+        }
+      });
+    }
+    
+    // Verify lecturer exists
+    const lecturer = await User.findById(req.params.lecturerId);
+    if (!lecturer || lecturer.role !== 'lecturer') {
+      return res.status(404).json({ msg: "❌ Lecturer not found" });
+    }
+    
+    // Process each course enrollment
+    const enrollments = [];
+    const errors = [];
+    
+    for (const courseInfo of courses) {
+      try {
+        // Extract course information
+        const { courseId, programId, semester, programYear, academicYear } = courseInfo;
+        
+        if (!courseId || !programId) {
+          errors.push({
+            courseId,
+            error: "Course ID and Program ID are required for enrollment"
+          });
+          continue;
+        }
+        
+        // Verify course exists
+        const course = await Course.findById(courseId);
+        if (!course) {
+          errors.push({
+            courseId,
+            error: "Course not found"
+          });
+          continue;
+        }
+        
+        // Verify program exists
+        const program = await Program.findById(programId);
+        if (!program) {
+          errors.push({
+            programId,
+            error: "Program not found"
+          });
+          continue;
+        }
+        
+        // Check if enrollment already exists
+        const existingEnrollment = await Enrollment.findOne({
+          lecturerId: lecturer._id,
+          courseId,
+          programId,
+          enrollmentType: 'lecturer'
+        });
+        
+        if (existingEnrollment) {
+          // Update existing enrollment if needed
+          const currentAcademicYear = academicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+          
+          if (existingEnrollment.academicYear !== currentAcademicYear ||
+              existingEnrollment.semester !== (semester || course.semester || '1') ||
+              existingEnrollment.programYear !== (programYear || course.programYear || 1) ||
+              existingEnrollment.status !== 'enrolled') {
+            
+            existingEnrollment.academicYear = currentAcademicYear;
+            existingEnrollment.semester = semester || course.semester || '1';
+            existingEnrollment.programYear = programYear || course.programYear || 1;
+            existingEnrollment.status = 'enrolled';
+            
+            await existingEnrollment.save();
+            
+            console.log(`Updated enrollment for lecturer ${lecturer.email} in course ${course.course_name}`);
+            enrollments.push(existingEnrollment);
+          } else {
+            console.log(`Lecturer ${lecturer.email} already enrolled in course ${course.course_name}`);
+            errors.push({
+              courseId,
+              error: "Lecturer already enrolled in this course"
+            });
+          }
+        } else {
+          // Create new enrollment
+          const enrollment = new Enrollment({
+            lecturerId: lecturer._id,
+            courseId,
+            programId,
+            semester: semester || course.semester || '1',
+            programYear: programYear || course.programYear || 1,
+            academicYear: academicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+            status: 'enrolled',
+            enrollmentType: 'lecturer' // Set enrollment type to lecturer
+          });
+          
+          await enrollment.save();
+          enrollments.push(enrollment);
+          
+          // Update course to include lecturer
+          await Course.findByIdAndUpdate(
+            courseId,
+            { $addToSet: { lecturers: lecturer._id } }
+          );
+          
+          console.log(`Enrolled lecturer ${lecturer.email} in course ${course.course_name}`);
+        }
+      } catch (enrollErr) {
+        console.error(`Error enrolling lecturer in course: ${enrollErr.message}`);
+        errors.push({
+          courseId: courseInfo.courseId,
+          error: enrollErr.message
+        });
+      }
+    }
+    
+    // Return results
+    res.status(200).json({
+      msg: enrollments.length > 0 
+        ? `✅ Lecturer enrolled in ${enrollments.length} courses successfully` 
+        : "❌ No courses were enrolled",
+      enrollments,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (err) {
+    console.error('Error enrolling lecturer in courses:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// 🔹 Remove lecturer enrollment from a course
+router.delete("/lecturers/:lecturerId/enroll/:courseId", protect, adminMiddleware, async (req, res) => {
+  try {
+    const { lecturerId, courseId } = req.params;
+    
+    // Find the enrollment
+    const enrollment = await Enrollment.findOne({
+      lecturerId,
+      courseId,
+      enrollmentType: 'lecturer'
+    });
+    
+    if (!enrollment) {
+      return res.status(404).json({ msg: "❌ Enrollment not found" });
+    }
+    
+    // Remove enrollment
+    await Enrollment.findByIdAndDelete(enrollment._id);
+    
+    // Remove lecturer from course
+    await Course.findByIdAndUpdate(
+      courseId,
+      { $pull: { lecturers: lecturerId } }
+    );
+    
+    res.json({ msg: "✅ Lecturer enrollment removed successfully" });
+  } catch (err) {
+    console.error('Error removing lecturer enrollment:', err);
+    res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// 🔹 Get all lecturer enrollments
+router.get("/lecturers/:lecturerId/enrollments", protect, adminMiddleware, async (req, res) => {
+  try {
+    // Verify lecturer exists
+    const lecturer = await User.findById(req.params.lecturerId);
+    if (!lecturer || lecturer.role !== 'lecturer') {
+      return res.status(404).json({ msg: "❌ Lecturer not found" });
+    }
+    
+    // Find all enrollments for this lecturer
+    const enrollments = await Enrollment.find({
+      lecturerId: req.params.lecturerId,
+      enrollmentType: 'lecturer'
+    })
+      .populate('courseId', 'course_name course_code credits semester programYear')
+      .populate('programId', 'name code')
+      .sort({ createdAt: -1 });
+    
+    // Format for client consumption
+    const formattedEnrollments = enrollments.map(enrollment => ({
+      _id: enrollment._id,
+      course: enrollment.courseId ? {
+        id: enrollment.courseId._id,
+        name: enrollment.courseId.course_name,
+        code: enrollment.courseId.course_code,
+        credits: enrollment.courseId.credits,
+        courseSemester: enrollment.courseId.semester,
+        courseProgramYear: enrollment.courseId.programYear
+      } : null,
+      program: enrollment.programId ? {
+        id: enrollment.programId._id,
+        name: enrollment.programId.name,
+        code: enrollment.programId.code
+      } : null,
+      semester: enrollment.semester,
+      programYear: enrollment.programYear,
+      academicYear: enrollment.academicYear,
+      status: enrollment.status,
+      enrollmentDate: enrollment.enrollmentDate,
+      lastModified: enrollment.lastModified
+    }));
+    
+    res.json(formattedEnrollments);
+  } catch (err) {
+    console.error('Error fetching lecturer enrollments:', err);
     res.status(500).json({ msg: "❌ Server error", error: err.message });
   }
 });
