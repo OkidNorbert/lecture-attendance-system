@@ -463,7 +463,7 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
       return res.status(403).json({ msg: 'Not authorized as admin' });
     }
 
-    console.log('Received course data:', req.body); // Debug log
+    console.log('Received course data:', req.body);
 
     const {
       name,
@@ -478,7 +478,6 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
 
     // Validate required fields
     if (!name || !code || !programId || !credits || !semester || !programYear) {
-      console.log('Missing fields:', { name, code, programId, credits, semester, programYear });
       return res.status(400).json({ 
         msg: 'Please provide all required fields',
         errors: {
@@ -492,8 +491,9 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
       });
     }
 
-    // Extra validation for code to prevent empty strings
-    if (!code || code.trim() === '') {
+    // Validate course code
+    const courseCode = code ? code.trim().toUpperCase() : '';
+    if (!courseCode) {
       return res.status(400).json({ 
         msg: 'Course code cannot be empty',
         errors: {
@@ -503,12 +503,15 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
     }
 
     // Check if course code already exists
-    const existingCourse = await Course.findOne({ course_code: code.toUpperCase().trim() });
+    const existingCourse = await Course.findOne({ 
+      course_code: courseCode,
+      program_id: programId 
+    });
     if (existingCourse) {
       return res.status(400).json({ 
-        msg: 'Course code already exists',
+        msg: 'Course code already exists in this program',
         errors: {
-          code: 'This course code is already in use'
+          code: 'This course code is already in use for this program'
         }
       });
     }
@@ -522,12 +525,13 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
     // Create course
     const course = new Course({
       course_name: name.trim(),
-      course_code: code && code.trim() ? code.toUpperCase().trim() : undefined,
+      course_code: courseCode,
       program_id: programId,
       description: description?.trim() || '',
       credits: Number(credits),
       semester,
       programYear: Number(programYear),
+      academicYear: req.body.academic_year || req.body.academicYear,
       status: status || 'active'
     });
 
@@ -556,42 +560,15 @@ router.post("/courses", protect, adminMiddleware, async (req, res) => {
 
     res.json(formattedCourse);
   } catch (err) {
-    console.error('Create course error:', err);
-    if (err.name === 'ValidationError') {
-      const errors = {};
-      for (const field in err.errors) {
-        errors[field.replace('course_', '')] = err.errors[field].message;
-      }
+    console.error('Error creating course:', err);
+    if (err.code === 11000) { // MongoDB duplicate key error
       return res.status(400).json({ 
-        msg: 'Validation Error', 
-        errors 
-      });
-    }
-    
-    if (err.code === 11000) {
-      const field = Object.keys(err.keyPattern)[0];
-      const keyValue = err.keyValue ? 
-        (err.keyValue[field] || 'null') : 
-        'null';
-        
-      if (keyValue === null || keyValue === 'null') {
-        // Specific handling for null values
-        return res.status(400).json({
-          msg: 'Invalid Data Error',
-          errors: {
-            code: 'Course code cannot be empty'
-          }
-        });
-      }
-      
-      return res.status(400).json({
-        msg: 'Duplicate Error',
+        msg: 'Course code already exists',
         errors: {
-          [field.replace('course_', '')]: `This ${field.replace('course_', '')} already exists: ${keyValue}`
+          code: 'This course code is already in use'
         }
       });
     }
-    
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
@@ -731,14 +708,37 @@ router.post("/departments", protect, adminMiddleware, async (req, res) => {
 // Program Routes
 router.get("/programs", protect, adminMiddleware, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
+    console.log('Fetching programs for admin');
+    
     const programs = await Program.find()
       .populate('facultyId', 'name code')
       .populate('departmentId', 'name code')
       .sort({ name: 1 });
-    res.json(programs);
+
+    // Make sure data is consistent
+    const formattedPrograms = programs.map(program => ({
+      _id: program._id,
+      id: program._id,
+      name: program.name,
+      code: program.code,
+      facultyId: program.facultyId,
+      departmentId: program.departmentId,
+      faculty: program.facultyId,
+      department: program.departmentId,
+      description: program.description,
+      duration: program.duration,
+      totalCredits: program.totalCredits
+    }));
+
+    console.log(`Found ${programs.length} programs`);
+    res.json(formattedPrograms);
   } catch (err) {
     console.error('Get programs error:', err);
-    res.status(500).json({ msg: "❌ Server error", error: err.message });
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -758,26 +758,9 @@ router.post("/programs", protect, adminMiddleware, async (req, res) => {
       totalCredits 
     } = req.body;
 
-    // Check if program already exists
-    let program = await Program.findOne({ 
-      $or: [
-        { name: name.trim() },
-        { code: code.toUpperCase() }
-      ]
-    });
-
-    if (program) {
-      return res.status(400).json({ 
-        msg: program.name === name.trim() 
-          ? 'Program name already exists' 
-          : 'Program code already exists' 
-      });
-    }
-
-    // Check if faculty exists
-    const faculty = await Faculty.findById(facultyId);
-    if (!faculty) {
-      return res.status(400).json({ msg: 'Faculty not found' });
+    // Validate required fields
+    if (!name || !code || !departmentId || !duration) {
+      return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
     // Check if department exists
@@ -786,10 +769,16 @@ router.post("/programs", protect, adminMiddleware, async (req, res) => {
       return res.status(400).json({ msg: 'Department not found' });
     }
 
+    // Check if program code already exists
+    let existingProgram = await Program.findOne({ code });
+    if (existingProgram) {
+      return res.status(400).json({ msg: 'Program code already exists' });
+    }
+
     // Create new program
     program = new Program({
-      name: name.trim(),
-      code: code.toUpperCase(),
+      name,
+      code,
       facultyId,
       departmentId,
       description: description?.trim(),
@@ -799,7 +788,7 @@ router.post("/programs", protect, adminMiddleware, async (req, res) => {
 
     await program.save();
 
-    // Populate references before sending response
+    // Populate department details before sending response
     const populatedProgram = await Program.findById(program._id)
       .populate('facultyId', 'name code')
       .populate('departmentId', 'name code');
@@ -810,9 +799,6 @@ router.post("/programs", protect, adminMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error('Create program error:', err);
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ msg: err.message });
-    }
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
@@ -1574,7 +1560,7 @@ router.post('/courses', protect, async (req, res) => {
       return res.status(403).json({ msg: 'Not authorized as admin' });
     }
 
-    console.log('Received course data:', req.body); // Debug log
+    console.log('Received course data:', req.body);
 
     const {
       name,
@@ -1587,24 +1573,16 @@ router.post('/courses', protect, async (req, res) => {
       status
     } = req.body;
 
+    console.log('Raw programYear received:', programYear, typeof programYear);
+
     // Validate required fields
-    if (!name || !code || !programId || !credits || !semester || !programYear) {
-      console.log('Missing fields:', { name, code, programId, credits, semester, programYear });
-      return res.status(400).json({ 
-        msg: 'Please provide all required fields',
-        errors: {
-          name: !name ? 'Course name is required' : undefined,
-          code: !code || code.trim() === '' ? 'Course code is required' : undefined,
-          programId: !programId ? 'Program is required' : undefined,
-          credits: !credits ? 'Credits are required' : undefined,
-          semester: !semester ? 'Semester is required' : undefined,
-          programYear: !programYear ? 'Program Year is required' : undefined
-        }
-      });
+    if (!name || !code || !programId || !credits || !semester || programYear === undefined) {
+      return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
-    // Extra validation for code to prevent empty strings
-    if (!code || code.trim() === '') {
+    // Validate course code
+    const courseCode = code ? code.trim().toUpperCase() : '';
+    if (!courseCode) {
       return res.status(400).json({ 
         msg: 'Course code cannot be empty',
         errors: {
@@ -1614,12 +1592,15 @@ router.post('/courses', protect, async (req, res) => {
     }
 
     // Check if course code already exists
-    const existingCourse = await Course.findOne({ course_code: code.toUpperCase().trim() });
+    const existingCourse = await Course.findOne({ 
+      course_code: courseCode,
+      program_id: programId 
+    });
     if (existingCourse) {
       return res.status(400).json({ 
-        msg: 'Course code already exists',
+        msg: 'Course code already exists in this program',
         errors: {
-          code: 'This course code is already in use'
+          code: 'This course code is already in use for this program'
         }
       });
     }
@@ -1633,12 +1614,13 @@ router.post('/courses', protect, async (req, res) => {
     // Create course
     const course = new Course({
       course_name: name.trim(),
-      course_code: code && code.trim() ? code.toUpperCase().trim() : undefined,
+      course_code: courseCode,
       program_id: programId,
       description: description?.trim() || '',
       credits: Number(credits),
       semester,
       programYear: Number(programYear),
+      academicYear: req.body.academic_year || req.body.academicYear,
       status: status || 'active'
     });
 
@@ -1667,42 +1649,15 @@ router.post('/courses', protect, async (req, res) => {
 
     res.json(formattedCourse);
   } catch (err) {
-    console.error('Create course error:', err);
-    if (err.name === 'ValidationError') {
-      const errors = {};
-      for (const field in err.errors) {
-        errors[field.replace('course_', '')] = err.errors[field].message;
-      }
+    console.error('Error creating course:', err);
+    if (err.code === 11000) { // MongoDB duplicate key error
       return res.status(400).json({ 
-        msg: 'Validation Error', 
-        errors 
-      });
-    }
-    
-    if (err.code === 11000) {
-      const field = Object.keys(err.keyPattern)[0];
-      const keyValue = err.keyValue ? 
-        (err.keyValue[field] || 'null') : 
-        'null';
-        
-      if (keyValue === null || keyValue === 'null') {
-        // Specific handling for null values
-        return res.status(400).json({
-          msg: 'Invalid Data Error',
-          errors: {
-            code: 'Course code cannot be empty'
-          }
-        });
-      }
-      
-      return res.status(400).json({
-        msg: 'Duplicate Error',
+        msg: 'Course code already exists',
         errors: {
-          [field.replace('course_', '')]: `This ${field.replace('course_', '')} already exists: ${keyValue}`
+          code: 'This course code is already in use'
         }
       });
     }
-    
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
@@ -1716,12 +1671,30 @@ router.get('/programs', protect, async (req, res) => {
       return res.status(403).json({ msg: 'Not authorized as admin' });
     }
 
+    console.log('Fetching programs for admin');
+    
     const programs = await Program.find()
       .populate('facultyId', 'name code')
       .populate('departmentId', 'name code')
       .sort({ name: 1 });
 
-    res.json(programs);
+    // Make sure data is consistent
+    const formattedPrograms = programs.map(program => ({
+      _id: program._id,
+      id: program._id,
+      name: program.name,
+      code: program.code,
+      facultyId: program.facultyId,
+      departmentId: program.departmentId,
+      faculty: program.facultyId,
+      department: program.departmentId,
+      description: program.description,
+      duration: program.duration,
+      totalCredits: program.totalCredits
+    }));
+
+    console.log(`Found ${programs.length} programs`);
+    res.json(formattedPrograms);
   } catch (err) {
     console.error('Get programs error:', err);
     res.status(500).json({ msg: 'Server Error', error: err.message });
@@ -1787,7 +1760,7 @@ router.post('/programs', protect, async (req, res) => {
       program: populatedProgram 
     });
   } catch (err) {
-    console.error('Error creating program:', err);
+    console.error('Create program error:', err);
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
@@ -2197,20 +2170,23 @@ router.put("/courses/:id", protect, adminMiddleware, async (req, res) => {
     console.log('Update data:', req.body);
 
     const {
-      name,
-      code,
-      facultyId,
-      departmentId,
-      programId,
+      course_name,
+      course_code,
+      program_id,
       description,
       credits,
       semester,
       programYear,
-      status
+      status,
+      lecturers,
+      faculty,
+      department
     } = req.body;
 
+    console.log('Raw programYear received:', programYear, typeof programYear);
+
     // Validate required fields
-    if (!name || !code || !facultyId || !departmentId || !programId || !credits || !semester || !academicYear) {
+    if (!course_name || !course_code || !program_id || !credits || !semester || programYear === undefined) {
       return res.status(400).json({ msg: 'Please provide all required fields' });
     }
 
@@ -2221,9 +2197,9 @@ router.put("/courses/:id", protect, adminMiddleware, async (req, res) => {
     }
 
     // Check if new code already exists (excluding this course)
-    if (code !== course.code) {
+    if (course_code !== course.course_code) {
       const existingCourse = await Course.findOne({
-        code: code.toUpperCase(),
+        course_code: course_code.toUpperCase(),
         _id: { $ne: req.params.id }
       });
       
@@ -2232,46 +2208,88 @@ router.put("/courses/:id", protect, adminMiddleware, async (req, res) => {
       }
     }
 
-    // Validate references
-    const [faculty, department, program] = await Promise.all([
-      Faculty.findById(facultyId),
-      Department.findById(departmentId),
-      Program.findById(programId)
-    ]);
+    // Validate program reference
+    const program = await Program.findById(program_id);
+    if (!program) {
+      return res.status(400).json({ msg: 'Program not found' });
+    }
 
-    if (!faculty) return res.status(400).json({ msg: 'Faculty not found' });
-    if (!department) return res.status(400).json({ msg: 'Department not found' });
-    if (!program) return res.status(400).json({ msg: 'Program not found' });
+    // Update the course with faculty and department if provided
+    const updateData = {
+      course_name,
+      course_code,
+      program_id,
+      description,
+      credits,
+      semester,
+      programYear,
+      status,
+      lecturers
+    };
+    
+    console.log('Updating course with data:', updateData);
+    console.log('Program Year received:', programYear);
+    console.log('Academic Year received:', req.body.academic_year || req.body.academicYear);
+    
+    // Get program to fetch faculty and department info
+    const programDetails = await Program.findById(program_id)
+      .populate('facultyId', 'name code')
+      .populate('departmentId', 'name code');
+      
+    // If faculty and department were explicitly provided, store them
+    if (faculty) {
+      updateData.faculty = faculty;
+    } else if (programDetails?.facultyId) {
+      updateData.faculty = programDetails.facultyId._id;
+    }
+    
+    if (department) {
+      updateData.department = department;
+    } else if (programDetails?.departmentId) {
+      updateData.department = programDetails.departmentId._id;
+    }
 
-    // Update the course
     const updatedCourse = await Course.findByIdAndUpdate(
       req.params.id,
-      {
-        name: name.trim(),
-        code: code.toUpperCase(),
-        facultyId,
-        departmentId,
-        programId,
-        description: description?.trim() || '',
-        credits: Number(credits),
-        semester,
-        academicYear,
-        status: status || 'active'
-      },
+      updateData,
       { new: true, runValidators: true }
-    )
-    .populate('facultyId', 'name code')
-    .populate('departmentId', 'name code')
-    .populate('programId', 'name code');
+    );
 
-    console.log('Course updated:', updatedCourse);
-    res.json(updatedCourse);
-  } catch (err) {
-    console.error('Update course error:', err);
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ msg: err.message });
+    if (!updatedCourse) {
+      return res.status(404).json({ msg: 'Course not found' });
     }
-    res.status(500).json({ msg: 'Server Error', error: err.message });
+
+    // Get full course details with populated relationships
+    const fullCourseDetails = await updatedCourse.getFullDetails();
+
+    // Add additional data needed by the client
+    const enrichedCourseDetails = {
+      ...fullCourseDetails,
+      faculty: programDetails?.facultyId || updateData.faculty || null,
+      department: programDetails?.departmentId || updateData.department || null,
+      facultyId: programDetails?.facultyId || updateData.faculty || null,
+      departmentId: programDetails?.departmentId || updateData.department || null,
+      programYear: updateData.programYear,
+      program: {
+        id: programDetails?._id,
+        name: programDetails?.name,
+        code: programDetails?.code
+      }
+    };
+    
+    console.log('Enriched course details:', enrichedCourseDetails);
+
+    res.json({
+      msg: 'Course updated successfully',
+      course: enrichedCourseDetails
+    });
+  } catch (err) {
+    console.error('Error updating course:', err);
+    res.status(500).json({ 
+      msg: 'Server error', 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
@@ -2586,6 +2604,110 @@ router.put("/users/:userId/approve", protect, adminMiddleware, async (req, res) 
     });
   } catch (err) {
     res.status(500).json({ msg: "❌ Server error", error: err.message });
+  }
+});
+
+// Better GET route for courses with improved population
+router.get('/courses-detailed', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized as admin' });
+    }
+
+    console.log('Fetching detailed courses for admin');
+    
+    // Find all courses
+    const courses = await Course.find()
+      .populate('program_id', 'name code')
+      .populate('faculty', 'name code')
+      .populate('department', 'name code');
+    
+    // Create an array to hold the processed courses
+    const processedCourses = [];
+    
+    // Process each course
+    for (const course of courses) {
+      console.log('Processing course:', course.course_name, 'Program ID:', course.program_id);
+      
+      // Start with the basic course data
+      const courseData = course.toObject({ virtuals: true });
+      
+      // Get program details
+      let programDetails = null;
+      if (course.program_id) {
+        try {
+          programDetails = await Program.findById(course.program_id)
+            .populate('facultyId', 'name code')
+            .populate('departmentId', 'name code');
+            
+          console.log('Found program details:', programDetails ? programDetails.name : 'Not found');
+        } catch (err) {
+          console.error('Error getting program details:', err);
+        }
+      }
+      
+      // Get faculty and department data
+      let faculty = null;
+      let department = null;
+      
+      // First try direct faculty/department references
+      if (course.faculty) {
+        faculty = await mongoose.model('Faculty').findById(course.faculty).select('name code');
+      }
+      
+      if (course.department) {
+        department = await mongoose.model('Department').findById(course.department).select('name code');
+      }
+      
+      // If not found, try to get from program
+      if (!faculty && programDetails?.facultyId) {
+        faculty = programDetails.facultyId;
+      }
+      
+      if (!department && programDetails?.departmentId) {
+        department = programDetails.departmentId;
+      }
+      
+      // Create the processed course object
+      const processedCourse = {
+        _id: course._id,
+        id: course._id,
+        name: course.course_name,
+        course_name: course.course_name,
+        code: course.course_code,
+        course_code: course.course_code,
+        program_id: course.program_id,
+        programId: course.program_id,
+        program: programDetails ? {
+          id: programDetails._id,
+          _id: programDetails._id,
+          name: programDetails.name,
+          code: programDetails.code
+        } : course.program_id ? {
+          id: course.program_id._id || course.program_id,
+          _id: course.program_id._id || course.program_id,
+          name: course.program_id.name || 'Unknown',
+          code: course.program_id.code || 'Unknown'
+        } : null,
+        faculty: faculty,
+        department: department,
+        facultyId: faculty,
+        departmentId: department,
+        description: course.description,
+        credits: course.credits,
+        semester: course.semester,
+        programYear: course.programYear,
+        status: course.status
+      };
+      
+      processedCourses.push(processedCourse);
+    }
+    
+    console.log(`Processed ${processedCourses.length} courses with detailed information`);
+    res.json(processedCourses);
+  } catch (err) {
+    console.error('Error fetching detailed courses:', err);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 

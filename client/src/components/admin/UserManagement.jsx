@@ -31,14 +31,30 @@ import {
   CardActions,
   Chip,
   Autocomplete,
-  Tooltip
+  Tooltip,
+  Tabs,
+  Tab,
+  InputAdornment,
+  TablePagination,
+  TableSortLabel,
+  Checkbox,
+  Menu,
+  ListItemIcon,
+  ListItemText
 } from '@mui/material';
 import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Close as CloseIcon,
   Person as PersonIcon,
-  School as SchoolIcon
+  School as SchoolIcon,
+  Search as SearchIcon,
+  MoreVert as MoreVertIcon,
+  CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon,
+  Block as BlockIcon,
+  FileDownload as FileDownloadIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 
 // Import our responsive components
@@ -72,6 +88,14 @@ const UserManagement = () => {
   const [viewingEnrollments, setViewingEnrollments] = useState(false);
   const [programCourses, setProgramCourses] = useState([]);
   const [success, setSuccess] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [orderBy, setOrderBy] = useState('name');
+  const [order, setOrder] = useState('asc');
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [activeTab, setActiveTab] = useState(0);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -348,37 +372,28 @@ const UserManagement = () => {
   };
 
   const handleUpdate = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const token = localStorage.getItem('token');
-      
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
-
       const userData = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        role: formData.role
+        ...formData,
+        name: `${formData.first_name} ${formData.last_name}`
       };
 
-      // Include password only if it was provided
+      // Add role-specific fields
+      if (formData.role === 'lecturer') {
+        userData.department = formData.department;
+      } else if (formData.role === 'student') {
+        userData.program_id = formData.program;
+      }
+
+      // Only include password if it's been changed
       if (formData.password) {
         userData.password = formData.password;
       }
 
-      // Add role-specific data
-      if (formData.role === 'student') {
-        userData.program_id = formData.program;
-        userData.semester = formData.semester;
-        userData.programYear = formData.programYear;
-      } else if (formData.role === 'lecturer') {
-        userData.courses = formData.courses;
-      }
-
       // Update user
-      const response = await axios.put(
+      await axios.put(
         `http://localhost:5000/api/admin/users/${editingUser._id}`,
         userData,
         {
@@ -389,19 +404,12 @@ const UserManagement = () => {
         }
       );
 
-      // Update successful, refresh the user list
-      fetchUsers();
-      
-      // Close dialog and reset form
-      handleDialogClose();
-      
-      // Show success message
+      // Refresh users list
+      await fetchUsers();
+      setOpenDialog(false);
       setSuccess('User updated successfully');
-      
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      console.error('Error updating user:', err);
       setError(err.response?.data?.msg || 'Failed to update user');
     } finally {
       setLoading(false);
@@ -614,85 +622,108 @@ const UserManagement = () => {
 
   // Render the TableView for users
   const renderTableView = () => (
-    <TableContainer component={Paper} sx={{
-      overflow: 'auto',
-      '@media (max-width: 600px)': {
-        maxWidth: '100vw',
-      },
-      '@media (orientation: landscape) and (max-height: 600px)': {
-        maxHeight: '300px'
-      }
-    }}>
-      <Table size={isMobile ? "small" : "medium"} stickyHeader>
+    <TableContainer component={Paper}>
+      <Table>
         <TableHead>
           <TableRow>
-            <TableCell>Name</TableCell>
-            <TableCell>Email</TableCell>
-            <TableCell>Role</TableCell>
+            <TableCell padding="checkbox">
+              <Checkbox
+                checked={selectedUsers.length === users.length}
+                indeterminate={selectedUsers.length > 0 && selectedUsers.length < users.length}
+                onChange={handleSelectAll}
+              />
+            </TableCell>
+            <TableCell>
+              <TableSortLabel
+                active={orderBy === 'name'}
+                direction={orderBy === 'name' ? order : 'asc'}
+                onClick={() => handleSort('name')}
+              >
+                Name
+              </TableSortLabel>
+            </TableCell>
+            <TableCell>
+              <TableSortLabel
+                active={orderBy === 'email'}
+                direction={orderBy === 'email' ? order : 'asc'}
+                onClick={() => handleSort('email')}
+              >
+                Email
+              </TableSortLabel>
+            </TableCell>
+            <TableCell>
+              <TableSortLabel
+                active={orderBy === 'role'}
+                direction={orderBy === 'role' ? order : 'asc'}
+                onClick={() => handleSort('role')}
+              >
+                Role
+              </TableSortLabel>
+            </TableCell>
             <TableCell>Program</TableCell>
             <TableCell>Semester</TableCell>
             <TableCell>Program Year</TableCell>
             <TableCell>Status</TableCell>
-            <TableCell align="center">Actions</TableCell>
+            <TableCell align="right">Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {users.map((user) => (
+          {paginatedUsers.map((user) => (
             <TableRow key={user._id} hover>
+              <TableCell padding="checkbox">
+                <Checkbox
+                  checked={selectedUsers.includes(user._id)}
+                  onChange={() => handleSelectUser(user._id)}
+                />
+              </TableCell>
               <TableCell>
-                {user.first_name && user.last_name 
-                  ? `${user.first_name} ${user.last_name}`
-                  : user.name || 'Unknown User'}
+                {user.first_name} {user.last_name}
               </TableCell>
               <TableCell>{user.email}</TableCell>
               <TableCell>
-                <Chip 
-                  label={user.role.charAt(0).toUpperCase() + user.role.slice(1)} 
+                <Chip
+                  label={user.role}
                   color={getRoleColor(user.role)}
-                  size="small" 
+                  size="small"
                 />
               </TableCell>
               <TableCell>{user.program?.name || '-'}</TableCell>
               <TableCell>{user.semester || '-'}</TableCell>
               <TableCell>{user.programYear || '-'}</TableCell>
               <TableCell>
-                <Chip 
-                  label={user.isActive ? 'Active' : 'Inactive'} 
-                  size="small"
+                <Chip
+                  label={user.isActive ? 'Active' : 'Inactive'}
                   color={user.isActive ? 'success' : 'default'}
+                  size="small"
                 />
               </TableCell>
-              <TableCell align="center">
-                <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                  <Tooltip title="Edit User">
-                    <IconButton 
-                      size="small" 
+              <TableCell align="right">
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                  <Tooltip title="Edit">
+                    <IconButton
+                      size="small"
                       onClick={() => handleEdit(user)}
                       color="primary"
-                      sx={{ mr: 1 }}
                     >
-                      <EditIcon fontSize="small" />
+                      <EditIcon />
                     </IconButton>
                   </Tooltip>
-                  
                   <Tooltip title="View Enrollments">
-                    <IconButton 
-                      size="small" 
+                    <IconButton
+                      size="small"
                       onClick={() => showUserEnrollments(user._id)}
                       color="info"
-                      sx={{ mr: 1 }}
                     >
-                      <SchoolIcon fontSize="small" />
+                      <SchoolIcon />
                     </IconButton>
                   </Tooltip>
-                  
-                  <Tooltip title="Delete User">
-                    <IconButton 
-                      size="small" 
+                  <Tooltip title="Delete">
+                    <IconButton
+                      size="small"
                       onClick={() => handleDelete(user._id)}
                       color="error"
                     >
-                      <DeleteIcon fontSize="small" />
+                      <DeleteIcon />
                     </IconButton>
                   </Tooltip>
                 </Box>
@@ -701,6 +732,18 @@ const UserManagement = () => {
           ))}
         </TableBody>
       </Table>
+      <TablePagination
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        component="div"
+        count={filteredUsers.length}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={(_, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(event) => {
+          setRowsPerPage(parseInt(event.target.value, 10));
+          setPage(0);
+        }}
+      />
     </TableContainer>
   );
 
@@ -734,9 +777,18 @@ const UserManagement = () => {
     }
   };
   
-  const showUserEnrollments = (userId) => {
-    setSelectedUserId(userId);
-    setViewingEnrollments(true);
+  const showUserEnrollments = async (userId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`http://localhost:5000/api/admin/users/${userId}/enrollments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setEnrollments(response.data);
+      setSelectedUserId(userId);
+      setViewingEnrollments(true);
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Failed to fetch enrollments');
+    }
   };
   
   const closeEnrollmentsView = () => {
@@ -809,96 +861,189 @@ const UserManagement = () => {
   };
   
   // Dialog for viewing enrollments
-  const renderEnrollmentsDialog = () => {
-    if (!viewingEnrollments || !selectedUserId) return null;
-    
-    const userEnrollments = enrollments.filter(
-      e => e.studentId === selectedUserId || e.lecturerId === selectedUserId
-    );
-    
-    const selectedUser = [...users, ...unapprovedUsers].find(u => u._id === selectedUserId);
-    const isStudent = selectedUser?.role === 'student';
-    
-    return (
-      <Dialog
-        open={viewingEnrollments}
-        onClose={closeEnrollmentsView}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">
-            {selectedUser ? `${selectedUser.first_name} ${selectedUser.last_name}'s Enrollments` : 'Enrollments'}
-          </Typography>
-          <IconButton onClick={closeEnrollmentsView}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          {userEnrollments.length === 0 ? (
-            <Alert severity="info">
-              {isStudent ? 
-                "This student isn't enrolled in any courses yet." :
-                "This lecturer isn't assigned to any courses yet."
-              }
-            </Alert>
-          ) : (
-            <>
-              <Typography variant="subtitle1" gutterBottom>
-                {isStudent ? 
-                  `Enrolled in ${userEnrollments.length} course${userEnrollments.length !== 1 ? 's' : ''}` :
-                  `Teaching ${userEnrollments.length} course${userEnrollments.length !== 1 ? 's' : ''}`
-                }
-              </Typography>
-              <TableContainer sx={{ maxHeight: 400 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Course Code</TableCell>
-                      <TableCell>Course Name</TableCell>
-                      {isStudent && <TableCell>Lecturer</TableCell>}
-                      {!isStudent && <TableCell>Student</TableCell>}
-                      <TableCell>Semester</TableCell>
-                      <TableCell>Program Year</TableCell>
-                      <TableCell>Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {userEnrollments.map(enrollment => (
-                      <TableRow key={enrollment._id} hover>
-                        <TableCell>{enrollment.course?.course_code || 'N/A'}</TableCell>
-                        <TableCell>{enrollment.course?.course_name || 'Unknown Course'}</TableCell>
-                        {isStudent && (
-                          <TableCell>{enrollment.lecturer?.first_name} {enrollment.lecturer?.last_name || 'Unknown Lecturer'}</TableCell>
-                        )}
-                        {!isStudent && (
-                          <TableCell>{enrollment.student?.first_name} {enrollment.student?.last_name || 'Unknown Student'}</TableCell>
-                        )}
-                        <TableCell>{enrollment.semester}</TableCell>
-                        <TableCell>{enrollment.programYear}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={enrollment.status} 
-                            size="small"
-                            color={enrollment.status === 'enrolled' ? 'success' : 'default'}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeEnrollmentsView} color="primary">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+  const renderEnrollmentsDialog = () => (
+    <Dialog
+      open={viewingEnrollments}
+      onClose={() => setViewingEnrollments(false)}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>
+        User Enrollments
+        <IconButton
+          aria-label="close"
+          onClick={() => setViewingEnrollments(false)}
+          sx={{ position: 'absolute', right: 8, top: 8 }}
+        >
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Course</TableCell>
+                <TableCell>Semester</TableCell>
+                <TableCell>Program Year</TableCell>
+                <TableCell>Status</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {enrollments.map((enrollment) => (
+                <TableRow key={enrollment._id}>
+                  <TableCell>{enrollment.course?.name || '-'}</TableCell>
+                  <TableCell>{enrollment.semester || '-'}</TableCell>
+                  <TableCell>{enrollment.programYear || '-'}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={enrollment.status}
+                      color={enrollment.status === 'active' ? 'success' : 'default'}
+                      size="small"
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const handleSearch = (event) => {
+    setSearchTerm(event.target.value);
+  };
+
+  const handleSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const handleSelectAll = (event) => {
+    if (event.target.checked) {
+      setSelectedUsers(users.map((user) => user._id));
+    } else {
+      setSelectedUsers([]);
+    }
+  };
+
+  const handleSelectUser = (userId) => {
+    setSelectedUsers((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
     );
   };
+
+  const handleBulkAction = async (action) => {
+    if (selectedUsers.length === 0) return;
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      switch (action) {
+        case 'delete':
+          await Promise.all(
+            selectedUsers.map((id) =>
+              axios.delete(`http://localhost:5000/api/admin/users/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              })
+            )
+          );
+          setSuccess('Selected users deleted successfully');
+          break;
+        case 'approve':
+          await Promise.all(
+            selectedUsers.map((id) =>
+              axios.put(
+                `http://localhost:5000/api/admin/users/${id}/approve`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+            )
+          );
+          setSuccess('Selected users approved successfully');
+          break;
+        case 'activate':
+          await Promise.all(
+            selectedUsers.map((id) =>
+              axios.put(
+                `http://localhost:5000/api/admin/users/${id}/activate`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+            )
+          );
+          setSuccess('Selected users activated successfully');
+          break;
+        case 'deactivate':
+          await Promise.all(
+            selectedUsers.map((id) =>
+              axios.put(
+                `http://localhost:5000/api/admin/users/${id}/deactivate`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+              )
+            )
+          );
+          setSuccess('Selected users deactivated successfully');
+          break;
+      }
+      await fetchUsers();
+      setSelectedUsers([]);
+    } catch (err) {
+      setError(err.response?.data?.msg || 'Failed to perform bulk action');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExport = () => {
+    // Implement export functionality
+    const csvContent = [
+      ['Name', 'Email', 'Role', 'Program', 'Semester', 'Program Year', 'Status'],
+      ...users.map((user) => [
+        `${user.first_name} ${user.last_name}`,
+        user.email,
+        user.role,
+        user.program?.name || '-',
+        user.semester || '-',
+        user.programYear || '-',
+        user.isActive ? 'Active' : 'Inactive'
+      ])
+    ].map((row) => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'users.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const filteredUsers = users.filter((user) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      user.first_name?.toLowerCase().includes(searchLower) ||
+      user.last_name?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower) ||
+      user.role?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const sortedUsers = filteredUsers.sort((a, b) => {
+    const aValue = a[orderBy]?.toLowerCase() || '';
+    const bValue = b[orderBy]?.toLowerCase() || '';
+    return order === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+  });
+
+  const paginatedUsers = sortedUsers.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
 
   return (
     <ResponsiveAdminContainer title="User Management">
@@ -906,19 +1051,36 @@ const UserManagement = () => {
         <Typography variant="h4" component="h1" gutterBottom>
           User Management
         </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => setOpenDialog(true)}
-          sx={{ mb: 2 }}
-        >
-          Add New User
-        </Button>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setOpenDialog(true)}
+              sx={{ mr: 1 }}
+            >
+              Add New User
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<FileDownloadIcon />}
+              onClick={handleExport}
+            >
+              Export
+            </Button>
+          </Box>
+        </Box>
       </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {success}
         </Alert>
       )}
 
@@ -964,7 +1126,8 @@ const UserManagement = () => {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
+                  helperText={editingUser ? "Leave blank to keep current password" : "Required for new users"}
+                  required={!editingUser}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -972,8 +1135,9 @@ const UserManagement = () => {
                   <InputLabel>Role</InputLabel>
                   <Select
                     value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                     label="Role"
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    required
                   >
                     <MenuItem value="student">Student</MenuItem>
                     <MenuItem value="lecturer">Lecturer</MenuItem>
@@ -989,8 +1153,8 @@ const UserManagement = () => {
                       <InputLabel>Program</InputLabel>
                       <Select
                         value={formData.program}
-                        onChange={(e) => handleProgramChange(e.target.value)}
                         label="Program"
+                        onChange={(e) => handleProgramChange(e.target.value)}
                         required
                       >
                         {programs.map((program) => (
@@ -1136,7 +1300,7 @@ const UserManagement = () => {
       {/* Edit User Dialog */}
       <Dialog open={openDialog} onClose={handleDialogClose} maxWidth="md" fullWidth>
         <DialogTitle>
-          {editingUser ? 'Edit User' : 'Create User'}
+          {editingUser ? 'Edit User' : 'Add New User'}
           <IconButton
             aria-label="close"
             onClick={handleDialogClose}
@@ -1146,240 +1310,112 @@ const UserManagement = () => {
           </IconButton>
         </DialogTitle>
         <DialogContent>
-          {editingUser && (
-            <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                User Information
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={6} md={3}>
-                  <Typography variant="body2" color="text.secondary">User ID</Typography>
-                  <Typography variant="body1" noWrap sx={{ maxWidth: '100%' }}>{editingUser._id}</Typography>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Typography variant="body2" color="text.secondary">Role</Typography>
-                  <Chip 
-                    label={editingUser.role.charAt(0).toUpperCase() + editingUser.role.slice(1)} 
-                    color={getRoleColor(editingUser.role)}
-                    size="small" 
-                  />
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Typography variant="body2" color="text.secondary">Status</Typography>
-                  <Chip 
-                    label={editingUser.isActive ? 'Active' : 'Inactive'} 
-                    color={editingUser.isActive ? 'success' : 'default'}
-                    size="small" 
-                  />
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Typography variant="body2" color="text.secondary">Approval</Typography>
-                  <Chip 
-                    label={editingUser.isApproved ? 'Approved' : 'Pending'} 
-                    color={editingUser.isApproved ? 'success' : 'warning'}
-                    size="small" 
-                  />
-                </Grid>
-                {editingUser.studentId && (
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Student ID</Typography>
-                    <Typography variant="body1">{editingUser.studentId}</Typography>
-                  </Grid>
-                )}
-                {editingUser.createdAt && (
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary">Account Created</Typography>
-                    <Typography variant="body1">
-                      {new Date(editingUser.createdAt).toLocaleString()}
-                    </Typography>
-                  </Grid>
-                )}
+          <Box sx={{ mt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="First Name"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  required
+                />
               </Grid>
-            </Box>
-          )}
-          
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="First Name"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                required
-                fullWidth
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Last Name"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                required
-                fullWidth
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-                fullWidth
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <FormControl required fullWidth>
-                <InputLabel>Role</InputLabel>
-                <Select
-                  value={formData.role}
-                  label="Role"
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                >
-                  <MenuItem value="student">Student</MenuItem>
-                  <MenuItem value="lecturer">Lecturer</MenuItem>
-                  <MenuItem value="admin">Admin</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                label="New Password (leave blank to keep current)"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                fullWidth
-              />
-            </Grid>
-            
-            {/* Continue with the rest of the form */}
-            {(formData.role === 'student' || formData.role === 'lecturer') && (
-              <>
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Program</InputLabel>
-                    <Select
-                      value={formData.program}
-                      onChange={(e) => handleProgramChange(e.target.value)}
-                      label="Program"
-                      required
-                    >
-                      {programs.map((program) => (
-                        <MenuItem key={program._id} value={program._id}>
-                          {program.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                
-                {/* Show program courses for students in edit form */}
-                {formData.role === 'student' && formData.program && programCourses.length > 0 && (
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Last Name"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  helperText={editingUser ? "Leave blank to keep current password" : "Required for new users"}
+                  required={!editingUser}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Role</InputLabel>
+                  <Select
+                    value={formData.role}
+                    label="Role"
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    required
+                  >
+                    <MenuItem value="student">Student</MenuItem>
+                    <MenuItem value="lecturer">Lecturer</MenuItem>
+                    <MenuItem value="admin">Admin</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              {formData.role === 'student' && (
+                <>
                   <Grid item xs={12}>
-                    <Paper sx={{ p: 2 }}>
-                      <Typography variant="subtitle2" gutterBottom>
-                        Student will be enrolled in these courses:
-                      </Typography>
-                      <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
-                        {programCourses.map(course => (
-                          <Box 
-                            key={course._id} 
-                            sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center',
-                              py: 0.5
-                            }}
-                          >
-                            <Chip 
-                              size="small" 
-                              label={course.course_code} 
-                              color="primary" 
-                              sx={{ mr: 1 }} 
-                            />
-                            <Typography variant="body2">
-                              {course.course_name}
-                            </Typography>
-                          </Box>
+                    <FormControl fullWidth>
+                      <InputLabel>Program</InputLabel>
+                      <Select
+                        value={formData.program}
+                        label="Program"
+                        onChange={(e) => handleProgramChange(e.target.value)}
+                        required
+                      >
+                        {programs.map((program) => (
+                          <MenuItem key={program._id} value={program._id}>
+                            {program.name}
+                          </MenuItem>
                         ))}
-                      </Box>
-                    </Paper>
+                      </Select>
+                    </FormControl>
                   </Grid>
-                )}
-                
-                {/* For lecturers, allow selecting courses */}
-                {formData.role === 'lecturer' && (
-                  <Grid item xs={12}>
-                    <Autocomplete
-                      multiple
-                      options={courses}
-                      getOptionLabel={(option) => `${option.course_code} - ${option.course_name}`}
-                      value={courses.filter(course => formData.courses.includes(course._id))}
-                      onChange={(_, newValue) => {
-                        setFormData({
-                          ...formData,
-                          courses: newValue.map(course => course._id)
-                        });
-                      }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="Courses"
-                          required
-                        />
-                      )}
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Semester"
+                      value={formData.semester}
+                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
                     />
                   </Grid>
-                )}
-                
-                <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Semester</InputLabel>
-                    <Select
-                      value={formData.semester}
-                      label="Semester"
-                      onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
-                    >
-                      <MenuItem value="1">Semester 1</MenuItem>
-                      <MenuItem value="2">Semester 2</MenuItem>
-                      <MenuItem value="3">Semester 3</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Program Year</InputLabel>
-                    <Select
-                      value={formData.programYear}
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
                       label="Program Year"
+                      type="number"
+                      value={formData.programYear}
                       onChange={(e) => setFormData({ ...formData, programYear: e.target.value })}
-                    >
-                      <MenuItem value={1}>Year 1</MenuItem>
-                      <MenuItem value={2}>Year 2</MenuItem>
-                      <MenuItem value={3}>Year 3</MenuItem>
-                      <MenuItem value={4}>Year 4</MenuItem>
-                      <MenuItem value={5}>Year 5</MenuItem>
-                      <MenuItem value={6}>Year 6</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </>
-            )}
-          </Grid>
+                    />
+                  </Grid>
+                </>
+              )}
+            </Grid>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleDialogClose}>Cancel</Button>
           <Button 
-            onClick={editingUser ? handleUpdate : handleSubmit} 
-            variant="contained" 
+            onClick={editingUser ? handleUpdate : handleSubmit}
+            variant="contained"
             color="primary"
             disabled={loading}
           >
-            {loading ? (
-              <CircularProgress size={24} />
-            ) : editingUser ? (
-              'Save Changes'
-            ) : (
-              'Create User'
-            )}
+            {loading ? <CircularProgress size={24} /> : (editingUser ? 'Update' : 'Add')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1396,8 +1432,8 @@ const UserManagement = () => {
           <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
           <Button 
             onClick={confirmDelete} 
-            variant="contained" 
             color="error" 
+            variant="contained"
             disabled={loading}
           >
             {loading ? <CircularProgress size={24} /> : 'Delete'}
@@ -1405,8 +1441,43 @@ const UserManagement = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Enrollments dialog */}
-      {renderEnrollmentsDialog()}
+      {/* More Actions Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={() => setAnchorEl(null)}
+      >
+        <MenuItem onClick={() => {
+          handleBulkAction('activate');
+          setAnchorEl(null);
+        }}>
+          <ListItemIcon>
+            <CheckCircleIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Activate</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          handleBulkAction('deactivate');
+          setAnchorEl(null);
+        }}>
+          <ListItemIcon>
+            <BlockIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Deactivate</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          handleDelete(selectedUserId);
+          setAnchorEl(null);
+        }}>
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Delete</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* Enrollments Dialog */}
+      {viewingEnrollments && renderEnrollmentsDialog()}
     </ResponsiveAdminContainer>
   );
 };

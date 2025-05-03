@@ -86,8 +86,8 @@ const ProgramManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    facultyId: '',
-    departmentId: '',
+    facultyId: null,
+    departmentId: null,
     description: '',
     duration: 4,
     totalCredits: 120,
@@ -138,8 +138,7 @@ const ProgramManagement = () => {
   const fetchPrograms = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/admin/programs');
-      console.log('Fetched programs:', response.data);
+      const response = await axios.get('/api/programs');
       setPrograms(response.data);
     } catch (err) {
       console.error('Error fetching programs:', err);
@@ -178,8 +177,8 @@ const ProgramManagement = () => {
       setFormData({
         name: program.name || '',
         code: program.code || '',
-        facultyId: program.facultyId?._id || program.facultyId || '',
-        departmentId: program.departmentId?._id || program.departmentId || '',
+        facultyId: program.facultyId?._id || program.facultyId || null,
+        departmentId: program.departmentId?._id || program.departmentId || null,
         description: program.description || '',
         duration: program.duration || 4,
         totalCredits: program.totalCredits || 120,
@@ -189,8 +188,8 @@ const ProgramManagement = () => {
       setFormData({
         name: '',
         code: '',
-        facultyId: '',
-        departmentId: '',
+        facultyId: null,
+        departmentId: null,
         description: '',
         duration: 4,
         totalCredits: 120,
@@ -211,6 +210,28 @@ const ProgramManagement = () => {
     setLoading(true);
     setError('');
     setSuccess('');
+
+    // Validate required fields
+    if (!formData.name.trim()) {
+      setError('Program name is required');
+      setLoading(false);
+      return;
+    }
+    if (!formData.code.trim()) {
+      setError('Program code is required');
+      setLoading(false);
+      return;
+    }
+    if (!formData.facultyId) {
+      setError('Faculty is required');
+      setLoading(false);
+      return;
+    }
+    if (!formData.departmentId) {
+      setError('Department is required');
+      setLoading(false);
+      return;
+    }
 
     try {
       if (dialogMode === 'add') {
@@ -296,6 +317,52 @@ const ProgramManagement = () => {
     }
   };
 
+  const renderProgramsTable = () => (
+    <ResponsiveTable
+      columns={[
+        { header: 'Name', field: 'name' },
+        { 
+          header: 'Department', 
+          render: (row) => row.departmentId?.name || 'Unknown Department' 
+        },
+        { header: 'Duration', field: 'duration', render: (row) => `${row.duration} years` },
+        { id: 'status', label: 'Status', minWidth: 100 },
+        { id: 'actions', label: 'Actions', minWidth: 100, align: 'right' }
+      ]}
+      data={programs}
+      loading={loading}
+      error={error}
+      onRowClick={(program) => handleOpenDialog('view', program)}
+      renderActions={(program) => (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+          <Tooltip title="Edit">
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenDialog('edit', program);
+              }}
+            >
+              <EditIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Delete">
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedProgram(program);
+                setDeleteConfirmOpen(true);
+              }}
+            >
+              <DeleteIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      )}
+    />
+  );
+
   return (
     <ResponsiveAdminContainer title="Program Management">
       {error && (
@@ -312,54 +379,106 @@ const ProgramManagement = () => {
         }
       }}>
         <ResponsiveFormContainer component="form" onSubmit={handleSubmit}>
-                    <Grid container spacing={2}>
+          <Grid container spacing={2}>
             <Grid item xs={12} sm={6} md={4}>
-                <TextField
-                  label="Program Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              <TextField
+                label="Program Name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
                 size={isMobile ? "small" : "medium"}
                 fullWidth
-                />
-              </Grid>
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <TextField
+                label="Program Code"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                required
+                size={isMobile ? "small" : "medium"}
+                fullWidth
+              />
+            </Grid>
             <Grid item xs={12} sm={6} md={4}>
               <FormControl 
-                  required
-                  fullWidth
+                required
+                fullWidth
+                size={isMobile ? "small" : "medium"}
+              >
+                <InputLabel>Faculty</InputLabel>
+                <Select
+                  value={formData.facultyId}
+                  label="Faculty"
+                  onChange={(e) => setFormData({ ...formData, facultyId: e.target.value })}
+                >
+                  {faculties.map((faculty) => (
+                    <MenuItem key={faculty._id} value={faculty._id}>
+                      {faculty.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <FormControl 
+                required
+                fullWidth
                 size={isMobile ? "small" : "medium"}
               >
                 <InputLabel>Department</InputLabel>
-                  <Select
-                    value={formData.departmentId}
-                    label="Department"
-                    onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                  >
+                <Select
+                  value={formData.departmentId}
+                  label="Department"
+                  onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
+                >
                   {departments.map((department) => (
-                      <MenuItem key={department._id} value={department._id}>
-                        {department.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+                    <MenuItem key={department._id} value={department._id}>
+                      {department.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
             <Grid item xs={12} sm={6} md={2}>
-                <TextField
-                  label="Duration (Years)"
-                  type="number"
-                  value={formData.duration}
+              <TextField
+                label="Duration (Years)"
+                type="number"
+                value={formData.duration}
                 onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                 required
                 inputProps={{ min: 1, max: 6 }}
                 size={isMobile ? "small" : "medium"}
-                  fullWidth
-                />
-              </Grid>
-            <Grid item xs={12} sm={6} md={2} sx={{ display: 'flex', alignItems: 'center' }}>
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                label="Total Credits"
+                type="number"
+                value={formData.totalCredits}
+                onChange={(e) => setFormData({ ...formData, totalCredits: e.target.value })}
+                required
+                inputProps={{ min: 30, max: 300 }}
+                size={isMobile ? "small" : "medium"}
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                label="Description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                multiline
+                rows={2}
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button
                 type="submit"
                 variant="contained"
-                  fullWidth
+                fullWidth
                 disabled={loading}
               >
                 {loading ? <CircularProgress size={24} /> : dialogMode === 'add' ? 'Add Program' : 'Update Program'}
@@ -375,108 +494,7 @@ const ProgramManagement = () => {
         </Typography>
       </Box>
 
-      <ResponsiveTable
-        columns={[
-          { header: 'Name', field: 'name' },
-          { header: 'Department', render: (row) => row.department?.name || 'Unknown Department' },
-          { header: 'Duration', field: 'duration', render: (row) => `${row.duration} years` },
-          { 
-            header: 'Actions', 
-            align: 'right',
-            render: (row) => (
-              <>
-                <IconButton 
-                  size="small"
-                  onClick={() => navigate(`/admin/programs/${row._id}`)}
-                  color="primary"
-                  sx={{ mr: 1 }}
-                >
-                  <VisibilityIcon fontSize="small" />
-                </IconButton>
-                <IconButton
-                  size="small"
-                  onClick={() => handleOpenDialog('edit', row)}
-                  color="secondary"
-                  sx={{ mr: 1 }}
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    setSelectedProgram(row);
-                    setDeleteConfirmOpen(true);
-                  }}
-                  color="error"
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </>
-            )
-          }
-        ]}
-        data={programs}
-        loading={loading}
-        emptyMessage="No programs found"
-        renderMobileCard={(program) => (
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <Box>
-                <Typography variant="h6" component="div" sx={{ 
-                  fontWeight: 'bold',
-                  fontSize: { xs: '1rem', sm: '1.25rem' }
-                }}>
-                  {program.name}
-                </Typography>
-                <Typography color="text.secondary" variant="body2">
-                  {program.department?.name || 'Unknown Department'}
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  <Chip 
-                    size="small" 
-                    label={`${program.duration} years`} 
-                    color="primary" 
-                    variant="outlined" 
-                  />
-                </Typography>
-          </Box>
-              <Box>
-                <IconButton 
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/admin/programs/${program._id}`);
-                  }}
-                  color="primary"
-                >
-                  <VisibilityIcon fontSize="small" />
-                </IconButton>
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenDialog('edit', program);
-                  }}
-                  color="secondary"
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedProgram(program);
-                    setDeleteConfirmOpen(true);
-                  }}
-                  color="error"
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            </Box>
-          </CardContent>
-        )}
-      />
+      {renderProgramsTable()}
 
       {/* Delete confirmation dialog */}
       <Dialog
