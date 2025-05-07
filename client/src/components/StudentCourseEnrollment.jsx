@@ -96,20 +96,23 @@ const StudentCourseEnrollment = () => {
     setSuccess('');
     
     try {
+      const selectedCourse = courses.find(c => c._id === courseId);
       const response = await axios.post('/api/enrollments', {
         courseId,
-        semester: filters.semester || courses.find(c => c._id === courseId)?.semester,
-        programYear: filters.programYear || courses.find(c => c._id === courseId)?.programYear,
+        semester: filters.semester || selectedCourse?.semester,
+        programYear: filters.programYear || selectedCourse?.programYear,
         academicYear: filters.academicYear,
         status: 'enrolled'
       });
       
+      // Add course details to the enrollment data
+      const newEnrollment = {
+        ...response.data,
+        course: selectedCourse
+      };
+      
       setSuccess('Successfully enrolled in the course');
-      
-      // Update current enrollments
-      setCurrentEnrollments([...currentEnrollments, response.data]);
-      
-      // Remove enrolled course from available courses
+      setCurrentEnrollments([...currentEnrollments, newEnrollment]);
       setAvailableCourses(availableCourses.filter(course => course._id !== courseId));
       
     } catch (err) {
@@ -266,10 +269,16 @@ const StudentCourseEnrollment = () => {
                 <div key={course._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <h3 className="font-semibold text-gray-800">{course.name}</h3>
                   <p className="text-sm text-gray-600 mb-2">Code: {course.code}</p>
-                  <p className="text-sm text-gray-600">Semester: {course.semester}</p>
-                  <p className="text-sm text-gray-600">Year: {course.programYear}</p>
-                  {course.faculty && <p className="text-sm text-gray-600">Faculty: {course.faculty}</p>}
-                  {course.department && <p className="text-sm text-gray-600">Department: {course.department}</p>}
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-600">Semester: {course.semester}</p>
+                    <p className="text-sm text-gray-600">Year: {course.programYear}</p>
+                    <p className="text-sm text-gray-600">Faculty: {course.faculty}</p>
+                    <p className="text-sm text-gray-600">Department: {course.department}</p>
+                    <p className="text-sm text-gray-600">Program: {course.program}</p>
+                    {course.lecturers && (
+                      <p className="text-sm text-gray-600">Lecturer(s): {course.lecturers}</p>
+                    )}
+                  </div>
                   
                   <button
                     onClick={() => handleEnroll(course._id)}
@@ -320,18 +329,24 @@ const StudentCourseEnrollment = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {currentEnrollments.map(enrollment => {
-                    const course = courses.find(c => c._id === enrollment.courseId) || {};
+                    const course = enrollment.course || courses.find(c => c._id === enrollment.courseId) || {};
                     return (
                       <tr key={enrollment._id}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-gray-900">{course.name || 'Unknown Course'}</div>
-                          <div className="text-sm text-gray-500">{course.code || ''}</div>
+                          <div className="font-medium text-gray-900">{course.name || course.course_name}</div>
+                          <div className="text-sm text-gray-500">{course.code || course.course_code}</div>
+                          <div className="text-sm text-gray-500">
+                            <span>Faculty: {course.faculty}</span>
+                            <span className="mx-2">|</span>
+                            <span>Department: {course.department}</span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {enrollment.semester} (Year {enrollment.programYear})
+                          {enrollment.semester ? `Semester ${enrollment.semester}` : ''} 
+                          {enrollment.programYear ? ` (Year ${enrollment.programYear})` : ''}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {enrollment.academicYear}
+                          {enrollment.academicYear || new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -340,11 +355,11 @@ const StudentCourseEnrollment = () => {
                             enrollment.status === 'completed' ? 'bg-blue-100 text-blue-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {enrollment.status}
+                            {enrollment.status || 'enrolled'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(enrollment.createdAt).toLocaleDateString()}
+                          {enrollment.enrollmentDate ? new Date(enrollment.enrollmentDate).toLocaleDateString() : new Date().toLocaleDateString()}
                         </td>
                       </tr>
                     );
@@ -359,4 +374,4 @@ const StudentCourseEnrollment = () => {
   );
 };
 
-export default StudentCourseEnrollment; 
+export default StudentCourseEnrollment;

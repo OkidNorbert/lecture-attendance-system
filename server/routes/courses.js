@@ -19,10 +19,27 @@ router.get('/', protect, async (req, res) => {
     
     const courses = await Course.find(query)
       .populate('program_id', 'name')
+      .populate('faculty', 'name')
+      .populate('department', 'name')
       .populate('lecturers', 'first_name last_name')
       .sort({ course_name: 1 });
 
-    res.json(courses);
+    // Format response to include faculty and department names
+    const formattedCourses = courses.map(course => ({
+      _id: course._id,
+      name: course.course_name,
+      code: course.course_code,
+      program: course.program_id?.name || 'N/A',
+      faculty: course.faculty?.name || 'Not Specified',
+      department: course.department?.name || 'Not Specified',
+      credits: course.credits,
+      semester: course.semester,
+      programYear: course.programYear,
+      description: course.description || '',
+      lecturers: course.lecturers?.map(l => `${l.first_name} ${l.last_name}`).join(', ') || 'No lecturer assigned'
+    }));
+
+    res.json(formattedCourses);
   } catch (err) {
     console.error('Error fetching courses:', err);
     res.status(500).json({ msg: 'Server Error', error: err.message });
@@ -239,4 +256,4 @@ router.get('/:courseId', protect, async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

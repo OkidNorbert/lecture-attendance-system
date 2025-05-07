@@ -143,7 +143,14 @@ router.get('/', protect, async (req, res) => {
 
     const enrollments = await Enrollment.find(query)
       .populate('studentId', 'first_name last_name email student_id')
-      .populate('courseId', 'course_code course_name credits')
+      .populate({
+        path: 'courseId',
+        select: 'course_code course_name credits faculty department',
+        populate: [
+          { path: 'faculty', select: 'name code' },
+          { path: 'department', select: 'name code' }
+        ]
+      })
       .populate('lecturerId', 'first_name last_name email lecturer_id')
       .populate('programId', 'name code');
 
@@ -160,7 +167,11 @@ router.get('/', protect, async (req, res) => {
       lecturerId: enrollment.lecturerId?._id || null,
       programId: enrollment.programId?._id || null,
       student: enrollment.studentId,
-      course: enrollment.courseId,
+      course: {
+        ...enrollment.courseId?._doc,
+        faculty: enrollment.courseId?.faculty?.name || 'Not Specified',
+        department: enrollment.courseId?.department?.name || 'Not Specified'
+      },
       lecturer: enrollment.lecturerId,
       program: enrollment.programId
     }));
@@ -394,4 +405,4 @@ router.put('/reassign-lecturer', protect, authorize(['admin']), async (req, res)
   }
 });
 
-module.exports = router; 
+module.exports = router;

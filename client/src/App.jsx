@@ -19,6 +19,8 @@ import StudentCourseEnrollment from './components/StudentCourseEnrollment';
 import CourseEnrollments from './components/lecturer/CourseEnrollments';
 import CourseAttendance from './components/lecturer/CourseAttendance';
 import LecturerCourses from './components/lecturer/LecturerCourses';
+import Profile from './pages/Profile';
+import Help from './pages/Help';
 
 // Route guard for redirecting to role-specific dashboard
 const DashboardRedirect = () => {
@@ -107,6 +109,8 @@ function App() {
           </AdminRoute>
         }
       />
+
+      {/* Lecturer Routes */}
       <Route 
         path="/lecturer/*" 
         element={
@@ -139,31 +143,22 @@ function App() {
           </LecturerRoute>
         }
       />
+
+      {/* Student Routes */}
       <Route 
-        path="/student" 
+        path="/student/*" 
         element={
           <StudentRoute>
             <StudentDashboard />
           </StudentRoute>
         }
       />
-      <Route path="/dashboard" element={<DashboardRedirect />} />
-      
-      {/* Shared Routes with role-based protection */}
       <Route 
         path="/attendance-history" 
         element={
-          <LecturerRoute>
+          <StudentRoute>
             <AttendanceHistory />
-          </LecturerRoute>
-        }
-      />
-      <Route 
-        path="/generate-qr" 
-        element={
-          <LecturerRoute>
-            <GenerateQR />
-          </LecturerRoute>
+          </StudentRoute>
         }
       />
       <Route 
@@ -183,19 +178,19 @@ function App() {
         }
       />
       <Route 
-        path="/session/:id" 
+        path="/profile" 
         element={
-          <LecturerRoute>
-            <SessionDetails />
-          </LecturerRoute>
+          <StudentRoute>
+            <Profile />
+          </StudentRoute>
         }
       />
       <Route 
-        path="/session-details/:id" 
+        path="/help" 
         element={
-          <LecturerRoute>
-            <SessionDetails />
-          </LecturerRoute>
+          <StudentRoute>
+            <Help />
+          </StudentRoute>
         }
       />
 
@@ -205,4 +200,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

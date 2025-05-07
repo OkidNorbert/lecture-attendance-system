@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "../utils/axios";
+import useRealTimeUpdates from "../hooks/useRealTimeUpdates";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -27,156 +28,110 @@ const Dashboard = () => {
     error: null,
     success: null
   });
+  const [recentActivity, setRecentActivity] = useState([]);
 
-  useEffect(() => {
+  // Setup WebSocket connection for real-time updates
+  const { lastMessage } = useRealTimeUpdates('student-updates');
+
+  // Function to fetch latest dashboard data
+  const fetchDashboardData = async (silent = false) => {
+    if (!silent) setLoading(true);
     const token = localStorage.getItem("token");
+    
     if (!token) {
       setError("❌ No token found. Redirecting...");
       setTimeout(() => navigate("/login"), 2000);
       return;
     }
 
-    const fetchUserData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch user data
-        console.log("[DEBUG] Fetching user data...");
-        const userResponse = await axios.get("/api/auth/me");
-        console.log("[DEBUG] User data received:", userResponse.data);
-        
-        setUser(userResponse.data);
+    try {
+      // Fetch all data in parallel including recent attendance
+      const [userResponse, statsResponse, enrollmentsResponse, attendanceResponse] = await Promise.all([
+        axios.get("/api/auth/me"),
+        axios.get("/api/attendance/stats/student"),
+        axios.get("/api/enrollments"),
+        axios.get("/api/attendance/history")
+      ]);
 
-        // Set default stats in case API calls fail
-        const defaultStats = {
-          totalAttended: 3,
-          totalSessions: 5,
-          attendanceRate: 60
-        };
-        
-        // Fetch student enrollments
-        try {
-          const enrollmentsResponse = await axios.get("/api/student/enrollments");
-          
-          if (enrollmentsResponse.data && enrollmentsResponse.data.length > 0) {
-            // Get the most recent enrollment
-            const sortedEnrollments = [...enrollmentsResponse.data].sort((a, b) => 
-              new Date(b.enrollmentDate) - new Date(a.enrollmentDate)
-            );
-            
-            const latestEnrollment = sortedEnrollments[0];
-            
-            // Determine available next semesters
-            const currentSemester = parseInt(latestEnrollment.semester);
-            const currentYear = latestEnrollment.programYear;
-            
-            // Generate next possible semester options
-            const nextOptions = [];
-            
-            if (currentSemester < 2) {
-              // Can enroll in next semester of same year
-              nextOptions.push({
-                semester: (currentSemester + 1).toString(),
-                programYear: currentYear,
-                label: `Semester ${currentSemester + 1} (Year ${currentYear})`
-              });
-            } else {
-              // Need to go to next year
-              const nextProgramYear = currentYear + 1;
-              nextOptions.push({
-                semester: "1",
-                programYear: nextProgramYear,
-                label: `Semester 1 (Year ${nextProgramYear})`
-              });
-            }
-            
-            setEnrollmentData({
-              currentSemester: latestEnrollment.semester,
-              currentYear: latestEnrollment.programYear,
-              enrollments: sortedEnrollments,
-              availableSemesters: nextOptions,
-              isEnrollmentOpen: true // You can control this with API data if needed
-            });
-          }
-        } catch (enrollErr) {
-          console.error("[DEBUG] Error fetching enrollments:", enrollErr);
-        }
-        
-        // Fetch attendance stats for student - try multiple approaches
-        try {
-          // Try primary endpoint
-          console.log("[DEBUG] Trying primary stats endpoint...");
-          const statsResponse = await axios.get("/api/attendance/stats/student");
-          console.log("[DEBUG] Stats received:", statsResponse.data);
-          
-          if (statsResponse.data) {
-            setStats({
-              totalAttended: statsResponse.data.totalAttended || defaultStats.totalAttended,
-              totalSessions: statsResponse.data.totalSessions || defaultStats.totalSessions,
-              attendanceRate: statsResponse.data.attendanceRate || defaultStats.attendanceRate
-            });
-            console.log("[DEBUG] Stats set from primary endpoint");
-          } else {
-            throw new Error("Empty response from stats endpoint");
-          }
-        } catch (statsErr) {
-          console.error("[ERROR] Failed with primary endpoint:", statsErr);
-          
-          try {
-            // Try fallback endpoint
-            console.log("[DEBUG] Trying fallback endpoint...");
-            const fallbackResponse = await axios.get("/api/attendance/stats/student/basic");
-            console.log("[DEBUG] Fallback stats received:", fallbackResponse.data);
-            
-            if (fallbackResponse.data) {
-              setStats({
-                totalAttended: fallbackResponse.data.totalAttended || defaultStats.totalAttended,
-                totalSessions: fallbackResponse.data.totalSessions || defaultStats.totalSessions,
-                attendanceRate: fallbackResponse.data.attendanceRate || defaultStats.attendanceRate
-              });
-              console.log("[DEBUG] Stats set from fallback endpoint");
-            } else {
-              throw new Error("Empty response from fallback endpoint");
-            }
-          } catch (fallbackErr) {
-            console.error("[ERROR] Failed with fallback endpoint:", fallbackErr);
-            
-            // Try the test endpoint as a last resort
-            try {
-              console.log("[DEBUG] Trying test endpoint...");
-              const testResponse = await axios.get("/api/attendance/stats/student/test");
-              console.log("[DEBUG] Test response received:", testResponse.data);
-              
-              if (testResponse.data) {
-                setStats({
-                  totalAttended: testResponse.data.totalAttended || defaultStats.totalAttended,
-                  totalSessions: testResponse.data.totalSessions || defaultStats.totalSessions,
-                  attendanceRate: testResponse.data.attendanceRate || defaultStats.attendanceRate
-                });
-                console.log("[DEBUG] Stats set from test endpoint");
-              } else {
-                throw new Error("Empty response from test endpoint");
-              }
-            } catch (testErr) {
-              console.error("[ERROR] Failed with test endpoint:", testErr);
-              
-              // If all else fails, use default values
-              console.log("[DEBUG] Using default stats values");
-              setStats(defaultStats);
-            }
-          }
-        }
-        
-        setLoading(false);
-      } catch (err) {
-        console.error("[ERROR] Failed to load user details:", err);
-        setError("❌ Failed to load user details. Redirecting...");
-        setTimeout(() => navigate("/login"), 2000);
+      // Process recent attendance records
+      const recentAttendance = attendanceResponse.data
+        .sort((a, b) => new Date(b.attendance_date) - new Date(a.attendance_date))
+        .slice(0, 3) // Get most recent 3 records
+        .map(record => ({
+          id: record._id,
+          courseName: record.course_id?.course_name || 'Unknown Course',
+          status: record.status,
+          date: new Date(record.attendance_date),
+          checkInTime: record.checkInTime ? new Date(record.checkInTime) : null
+        }));
+
+      setRecentActivity(recentAttendance);
+      setUser(userResponse.data);
+      
+      // Set attendance stats
+      if (statsResponse.data) {
+        setStats({
+          totalAttended: statsResponse.data.totalAttended || 0,
+          totalSessions: statsResponse.data.totalSessions || 0,
+          attendanceRate: statsResponse.data.attendanceRate || 0
+        });
       }
-    };
 
-    fetchUserData();
-  }, [navigate]);
+      // Process enrollment data
+      if (enrollmentsResponse.data?.length > 0) {
+        const sortedEnrollments = [...enrollmentsResponse.data].sort((a, b) => 
+          new Date(b.enrollmentDate) - new Date(a.enrollmentDate)
+        );
+        
+        const latestEnrollment = sortedEnrollments[0];
+        const currentSemester = parseInt(latestEnrollment.semester);
+        const currentYear = latestEnrollment.programYear;
+        const nextOptions = [];
+        
+        if (currentSemester < 2) {
+          nextOptions.push({
+            semester: (currentSemester + 1).toString(),
+            programYear: currentYear,
+            label: `Semester ${currentSemester + 1} (Year ${currentYear})`
+          });
+        } else {
+          nextOptions.push({
+            semester: "1",
+            programYear: currentYear + 1,
+            label: `Semester 1 (Year ${currentYear + 1})`
+          });
+        }
+        
+        setEnrollmentData({
+          currentSemester: latestEnrollment.semester,
+          currentYear: latestEnrollment.programYear,
+          enrollments: sortedEnrollments,
+          availableSemesters: nextOptions,
+          isEnrollmentOpen: true
+        });
+      }
+
+      if (!silent) setLoading(false);
+      setError(null);
+    } catch (err) {
+      console.error("[ERROR] Failed to load dashboard data:", err);
+      setError("Failed to load dashboard data. Please try again.");
+      if (!silent) setLoading(false);
+    }
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  // Handle real-time updates
+  useEffect(() => {
+    if (lastMessage?.type === 'attendance_update' || 
+        lastMessage?.type === 'enrollment_update') {
+      fetchDashboardData(true);
+    }
+  }, [lastMessage]);
 
   const handleEnrollmentModalOpen = () => {
     // Set the default enrollment form values
@@ -269,256 +224,331 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-50 via-indigo-50 to-blue-50">
-      <div className="max-w-6xl mx-auto p-6">
-        {/* Header Section */}
-        <header className="mb-8 bg-white rounded-2xl shadow-lg p-6 flex flex-col md:flex-row justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-indigo-800">Student Dashboard</h1>
-            <p className="text-indigo-600 mt-1">
-              Welcome back, <span className="font-semibold">{user?.name}</span>
-            </p>
-          </div>
-          
-          <div className="mt-4 md:mt-0 flex space-x-3">
-            <button 
-              onClick={() => navigate("/scan-qr")}
-              className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:shadow-lg transition duration-300 flex items-center"
-            >
-              <span className="mr-2">📸</span>
-              Scan QR Code
-            </button>
-            
-            <button 
-              onClick={() => { localStorage.removeItem("token"); navigate("/"); }}
-              className="bg-white border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 transition duration-200 flex items-center"
-            >
-              <span className="mr-2">🚪</span>
-              Logout
-            </button>
-          </div>
-        </header>
-        
-        {/* Stats Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl shadow-lg p-6 text-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-emerald-100 font-medium">Attendance Rate</p>
-                <h3 className="text-3xl font-bold mt-1">{stats.attendanceRate}%</h3>
-              </div>
-              <div className="w-12 h-12 bg-white bg-opacity-30 rounded-full flex items-center justify-center">
-                <span className="text-xl">📊</span>
-              </div>
-            </div>
-            <div className="mt-4 bg-white bg-opacity-20 h-2 rounded-full overflow-hidden">
-              <div 
-                className="bg-white h-full rounded-full" 
-                style={{ width: `${stats.attendanceRate}%` }}
-              ></div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl shadow-lg p-6 text-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-blue-100 font-medium">Sessions Attended</p>
-                <h3 className="text-3xl font-bold mt-1">{stats.totalAttended}</h3>
-              </div>
-              <div className="w-12 h-12 bg-white bg-opacity-30 rounded-full flex items-center justify-center">
-                <span className="text-xl">✅</span>
-              </div>
-            </div>
-            <p className="mt-4 text-blue-100">
-              Out of {stats.totalSessions} total sessions
-            </p>
-          </div>
-          
-          <div className="bg-gradient-to-br from-violet-400 to-purple-500 rounded-2xl shadow-lg p-6 text-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-violet-100 font-medium">Student ID</p>
-                <h3 className="text-3xl font-bold mt-1">{user?.studentId || 'N/A'}</h3>
-              </div>
-              <div className="w-12 h-12 bg-white bg-opacity-30 rounded-full flex items-center justify-center">
-                <span className="text-xl">🎓</span>
-              </div>
-            </div>
-            <p className="mt-4 text-violet-100">
-              Department: {user?.department || 'Not specified'}
-            </p>
-          </div>
-        </div>
-        
-        {/* Current Enrollment Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Current Enrollment</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 rounded-xl p-5">
-              <div className="flex items-center mb-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-amber-700 text-xl">📚</span>
-                </div>
-                <h3 className="font-semibold text-amber-900">Current Semester</h3>
-              </div>
-              <p className="text-2xl font-bold text-amber-800">
-                {enrollmentData.currentSemester ? `Semester ${enrollmentData.currentSemester}` : 'Not enrolled'}
+    <div className="student-dashboard-container min-h-screen w-full max-w-full overflow-x-hidden bg-gradient-to-br from-violet-50 via-indigo-50 to-blue-50 p-0 m-0">
+      <div className="student-dashboard-content w-full p-4 md:p-6 box-border">
+        <div className="student-dashboard-grid max-w-7xl mx-auto">
+          {/* Header Section */}
+          <header className="mb-8 bg-white rounded-2xl shadow-lg p-6 flex flex-col md:flex-row justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-indigo-800">Student Dashboard</h1>
+              <p className="text-indigo-600 mt-1">
+                Welcome back, <span className="font-semibold">{user?.name}</span>
               </p>
             </div>
             
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-5">
-              <div className="flex items-center mb-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-blue-700 text-xl">📅</span>
-                </div>
-                <h3 className="font-semibold text-blue-900">Program Year</h3>
-              </div>
-              <p className="text-2xl font-bold text-blue-800">
-                {enrollmentData.currentYear || 'Not enrolled'}
-              </p>
-            </div>
-            
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-5 flex flex-col">
-              <div className="flex items-center mb-3">
-                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-emerald-700 text-xl">➕</span>
-                </div>
-                <h3 className="font-semibold text-emerald-900">Course Enrollment</h3>
-              </div>
-              
-              <Link
-                to="/enroll-courses"
-                className="mt-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg shadow hover:shadow-lg transition duration-300 text-center"
+            <div className="mt-4 md:mt-0 flex space-x-3">
+              <button 
+                onClick={() => navigate("/scan-qr")}
+                className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:shadow-lg transition duration-300 flex items-center"
               >
-                Self-Enroll in Courses
-              </Link>
+                <span className="mr-2">📸</span>
+                Scan QR Code
+              </button>
               
-              {enrollmentData.isEnrollmentOpen && enrollmentData.availableSemesters.length > 0 && (
-                <button
-                  onClick={handleEnrollmentModalOpen}
-                  className="mt-2 px-4 py-2.5 bg-white border border-teal-500 text-teal-700 rounded-lg hover:bg-teal-50 transition duration-300"
-                >
-                  Enroll for Next Semester
-                </button>
-              )}
+              <button 
+                onClick={() => { localStorage.removeItem("token"); navigate("/"); }}
+                className="bg-white border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 transition duration-200 flex items-center"
+              >
+                <span className="mr-2">🚪</span>
+                Logout
+              </button>
+            </div>
+          </header>
+          
+          {/* Stats Section */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-emerald-100 font-medium">Attendance Rate</p>
+                  <h3 className="text-4xl font-bold mt-2">{stats.attendanceRate}%</h3>
+                </div>
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                  <span className="text-2xl">📊</span>
+                </div>
+              </div>
+              <div className="mt-6">
+                <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-white rounded-full transition-all duration-1000 ease-out"
+                    style={{ width: `${stats.attendanceRate}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-blue-100 font-medium">Sessions Attended</p>
+                  <h3 className="text-4xl font-bold mt-2">{stats.totalAttended}</h3>
+                </div>
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                  <span className="text-2xl">✅</span>
+                </div>
+              </div>
+              <p className="mt-6 text-blue-100 font-medium">
+                Out of {stats.totalSessions} total sessions
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-violet-400 to-purple-500 rounded-2xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-violet-100 font-medium">Student ID</p>
+                  <h3 className="text-4xl font-bold mt-2">{user?.studentId || 'N/A'}</h3>
+                </div>
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🎓</span>
+                </div>
+              </div>
+              <p className="mt-6 text-violet-100 font-medium">
+                {user?.department || 'Department not specified'}
+              </p>
             </div>
           </div>
-        </div>
-        
-        {/* Quick Actions Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <Link 
-              to="/scan-qr" 
-              className="flex flex-col items-center p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition duration-200"
-            >
-              <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mb-3">
-                <span className="text-2xl">📸</span>
-              </div>
-              <span className="text-indigo-800 font-medium">Scan QR</span>
-            </Link>
-            
-            <Link 
-              to="/attendance-history" 
-              className="flex flex-col items-center p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition duration-200"
-            >
-              <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mb-3">
-                <span className="text-2xl">📜</span>
-              </div>
-              <span className="text-emerald-800 font-medium">History</span>
-            </Link>
-            
-            <Link 
-              to="/enroll-courses"
-              className="flex flex-col items-center p-4 bg-violet-50 rounded-xl hover:bg-violet-100 transition duration-200"
-            >
-              <div className="w-14 h-14 bg-violet-100 rounded-full flex items-center justify-center mb-3">
+          
+          {/* Current Enrollment Section */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 transform hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mr-4">
                 <span className="text-2xl">📚</span>
               </div>
-              <span className="text-violet-800 font-medium">Enroll Courses</span>
-            </Link>
-            
-            <Link 
-              to="/profile" 
-              className="flex flex-col items-center p-4 bg-amber-50 rounded-xl hover:bg-amber-100 transition duration-200"
-            >
-              <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-3">
-                <span className="text-2xl">👤</span>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Current Enrollment</h2>
+                <p className="text-sm text-gray-500">Your active semester registration</p>
               </div>
-              <span className="text-amber-800 font-medium">Profile</span>
-            </Link>
+            </div>
             
-            <Link 
-              to="/help" 
-              className="flex flex-col items-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition duration-200"
-            >
-              <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mb-3">
-                <span className="text-2xl">❓</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 rounded-xl p-5 transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center mb-3">
+                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-amber-700 text-xl">📚</span>
+                  </div>
+                  <h3 className="font-semibold text-amber-900">Current Semester</h3>
+                </div>
+                <div className="mt-2">
+                  <p className="text-2xl font-bold text-amber-800">
+                    {enrollmentData.currentSemester ? `Semester ${enrollmentData.currentSemester}` : 'Not enrolled'}
+                  </p>
+                  <p className="text-sm text-amber-600 mt-1">Academic Year 2024/2025</p>
+                </div>
               </div>
-              <span className="text-blue-800 font-medium">Help</span>
-            </Link>
-          </div>
-        </div>
-        
-        {/* Recent Activity Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Recent Activity</h2>
-            <Link 
-              to="/attendance-history"
-              className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
-            >
-              View All →
-            </Link>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-5 transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center mb-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-blue-700 text-xl">📅</span>
+                  </div>
+                  <h3 className="font-semibold text-blue-900">Program Year</h3>
+                </div>
+                <div className="mt-2">
+                  <p className="text-2xl font-bold text-blue-800">
+                    Year {enrollmentData.currentYear || 'N/A'}
+                  </p>
+                  <p className="text-sm text-blue-600 mt-1">Bachelor's Program</p>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-5 transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center mb-3">
+                  <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-emerald-700 text-xl">➕</span>
+                  </div>
+                  <h3 className="font-semibold text-emerald-900">Course Enrollment</h3>
+                </div>
+                
+                <div className="flex flex-col gap-2 mt-2">
+                  <Link
+                    to="/enroll-courses"
+                    className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg shadow hover:shadow-lg transition duration-300 text-center flex items-center justify-center gap-2"
+                  >
+                    <span>Self-Enroll in Courses</span>
+                    <span className="text-xl">→</span>
+                  </Link>
+                  
+                  {enrollmentData.isEnrollmentOpen && enrollmentData.availableSemesters.length > 0 && (
+                    <button
+                      onClick={handleEnrollmentModalOpen}
+                      className="px-4 py-2.5 bg-white border-2 border-teal-500 text-teal-700 rounded-lg hover:bg-teal-50 transition duration-300 flex items-center justify-center gap-2"
+                    >
+                      <span>Next Semester Enrollment</span>
+                      <span className="text-xl">+</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
           
-          <div className="space-y-4">
-            {/* This would normally be populated with real data from an API call */}
-            <div className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition duration-200">
-              <div className="flex justify-between">
-                <div className="flex items-center">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-green-600 text-sm">✓</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-800">Introduction to Programming</h4>
-                    <p className="text-sm text-gray-500">Marked present</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">Today</p>
-                  <p className="text-xs text-gray-400">10:30 AM</p>
-                </div>
+          {/* Quick Actions Section */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 transform hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mr-4">
+                <span className="text-2xl">⚡</span>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Quick Actions</h2>
+                <p className="text-sm text-gray-500">Frequently used features</p>
               </div>
             </div>
-            
-            <div className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition duration-200">
-              <div className="flex justify-between">
-                <div className="flex items-center">
-                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-amber-600 text-sm">⏱</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-800">Database Systems</h4>
-                    <p className="text-sm text-gray-500">Marked late</p>
-                  </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <Link 
+                to="/scan-qr" 
+                className="group flex flex-col items-center p-4 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-indigo-400 to-blue-500 rounded-full flex items-center justify-center mb-3 text-white transform group-hover:scale-110 transition-transform duration-300">
+                  <span className="text-2xl">📸</span>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">Yesterday</p>
-                  <p className="text-xs text-gray-400">2:15 PM</p>
+                <span className="text-indigo-800 font-medium group-hover:text-indigo-600 transition-colors duration-300">Scan QR</span>
+              </Link>
+              
+              <Link 
+                to="/attendance-history" 
+                className="group flex flex-col items-center p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center mb-3 text-white transform group-hover:scale-110 transition-transform duration-300">
+                  <span className="text-2xl">📜</span>
                 </div>
-              </div>
+                <span className="text-emerald-800 font-medium group-hover:text-emerald-600 transition-colors duration-300">History</span>
+              </Link>
+              
+              <Link 
+                to="/enroll-courses"
+                className="group flex flex-col items-center p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-violet-400 to-purple-500 rounded-full flex items-center justify-center mb-3 text-white transform group-hover:scale-110 transition-transform duration-300">
+                  <span className="text-2xl">📚</span>
+                </div>
+                <span className="text-violet-800 font-medium group-hover:text-violet-600 transition-colors duration-300">Enroll</span>
+              </Link>
+              
+              <Link 
+                to="/profile" 
+                className="group flex flex-col items-center p-4 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mb-3 text-white transform group-hover:scale-110 transition-transform duration-300">
+                  <span className="text-2xl">👤</span>
+                </div>
+                <span className="text-amber-800 font-medium group-hover:text-amber-600 transition-colors duration-300">Profile</span>
+              </Link>
+              
+              <Link 
+                to="/help"
+                className="group flex flex-col items-center p-4 bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+              >
+                <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-sky-500 rounded-full flex items-center justify-center mb-3 text-white transform group-hover:scale-110 transition-transform duration-300">
+                  <span className="text-2xl">❓</span>
+                </div>
+                <span className="text-blue-800 font-medium group-hover:text-blue-600 transition-colors duration-300">Help</span>
+              </Link>
             </div>
-            
-            <div className="text-center pt-2">
+          </div>
+
+          {/* Recent Activity Section */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 transform hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-violet-100 to-purple-100 rounded-full flex items-center justify-center mr-4">
+                <span className="text-2xl">📅</span>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-gray-800">Recent Activity</h2>
+                <p className="text-sm text-gray-500">Your latest attendance records</p>
+              </div>
               <Link 
                 to="/attendance-history"
-                className="inline-block text-indigo-600 hover:text-indigo-800 font-medium"
+                className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center gap-1 hover:gap-2 transition-all duration-300"
               >
-                View more activity
+                <span>View All</span>
+                <span>→</span>
               </Link>
+            </div>
+            
+            <div className="space-y-4">
+              {recentActivity.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No recent attendance records found.
+                </div>
+              ) : (
+                recentActivity.map((activity) => (
+                  <div 
+                    key={activity.id} 
+                    className={`group border border-gray-100 rounded-lg p-4 hover:bg-gradient-to-r transition-all duration-300 ${
+                      activity.status === 'present' 
+                        ? 'hover:from-green-50 hover:to-emerald-50 hover:border-green-200'
+                        : activity.status === 'late'
+                        ? 'hover:from-amber-50 hover:to-yellow-50 hover:border-amber-200'
+                        : 'hover:from-red-50 hover:to-pink-50 hover:border-red-200'
+                    }`}
+                  >
+                    <div className="flex justify-between">
+                      <div className="flex items-center">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 group-hover:scale-110 transition-transform duration-300 ${
+                          activity.status === 'present'
+                            ? 'bg-gradient-to-br from-green-100 to-emerald-200'
+                            : activity.status === 'late'
+                            ? 'bg-gradient-to-br from-amber-100 to-yellow-200'
+                            : 'bg-gradient-to-br from-red-100 to-pink-200'
+                        }`}>
+                          <span className={`text-sm ${
+                            activity.status === 'present'
+                              ? 'text-green-600'
+                              : activity.status === 'late'
+                              ? 'text-amber-600'
+                              : 'text-red-600'
+                          }`}>
+                            {activity.status === 'present' ? '✓' : activity.status === 'late' ? '⏱' : '✕'}
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className={`font-medium text-gray-800 group-hover:text-${
+                            activity.status === 'present'
+                              ? 'green'
+                              : activity.status === 'late'
+                              ? 'amber'
+                              : 'red'
+                          }-800 transition-colors duration-300`}>
+                            {activity.courseName}
+                          </h4>
+                          <p className={`text-sm text-gray-500 group-hover:text-${
+                            activity.status === 'present'
+                              ? 'green'
+                              : activity.status === 'late'
+                              ? 'amber'
+                              : 'red'
+                          }-600`}>
+                            {activity.status === 'present' 
+                              ? 'Marked present'
+                              : activity.status === 'late'
+                              ? 'Marked late'
+                              : 'Marked absent'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">
+                          {activity.date.toLocaleDateString(undefined, {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </p>
+                        {activity.checkInTime && (
+                          <p className="text-xs text-gray-400">
+                            {activity.checkInTime.toLocaleTimeString(undefined, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

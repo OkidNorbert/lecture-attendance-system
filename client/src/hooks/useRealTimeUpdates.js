@@ -1,79 +1,78 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-const useRealTimeUpdates = (sessionId) => {
-  const [realTimeData, setRealTimeData] = useState(null);
-  const [error, setError] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
+const useRealTimeUpdates = (channel) => {
+  const [lastMessage, setLastMessage] = useState(null);
+  const [socket, setSocket] = useState(null);
+  const reconnectTimeout = useRef(null);
 
-  useEffect(() => {
-    // Don't attempt to connect if sessionId is invalid
-    if (!sessionId) {
-      setError('Invalid session ID');
-      return;
-    }
-
-    let ws = null;
-    
+  const connect = useCallback(() => {
     try {
-      ws = new WebSocket('ws://localhost:5000');
+      // Create WebSocket connection
+      const ws = new WebSocket(`${import.meta.env.VITE_WS_URL || 'ws://localhost:5000'}/ws`);
       
       ws.onopen = () => {
-        console.log('WebSocket connected for session:', sessionId);
-        setIsConnected(true);
-        setError(null);
-        
-        try {
-          ws.send(JSON.stringify({
-            type: 'subscribe',
-            sessionId
-          }));
-        } catch (err) {
-          console.error('Error sending subscription message:', err);
-          setError('Failed to subscribe to session updates');
-        }
+        console.log('WebSocket Connected');
+        // Subscribe to the channel
+        ws.send(JSON.stringify({ 
+          type: 'subscribe',
+          channel: channel // Send channel name instead of sessionId
+        }));
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'sessionUpdate') {
-            setRealTimeData(data.data);
-          } else if (data.type === 'error') {
-            setError(data.message || 'Error from server');
-          }
-        } catch (err) {
-          console.error('Error parsing WebSocket message:', err);
-          setError('Error processing real-time data');
+          setLastMessage(data);
+        } catch (error) {
+          console.error('WebSocket message parse error:', error);
         }
       };
 
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        setError('WebSocket connection error');
-        setIsConnected(false);
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
       };
 
-      ws.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
-        setIsConnected(false);
-        if (!event.wasClean) {
-          setError(`Connection closed unexpectedly (code: ${event.code})`);
+      ws.onclose = () => {
+        console.log('WebSocket Disconnected');
+        // Clean up current socket
+        setSocket(null);
+        // Attempt to reconnect after 5 seconds
+        reconnectTimeout.current = setTimeout(() => {
+          console.log('Attempting to reconnect...');
+          connect();
+        }, 5000);
+      };
+
+      setSocket(ws);
+
+      // Clean up existing socket
+      return () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
         }
       };
     } catch (err) {
-      console.error('WebSocket initialization error:', err);
-      setError('Failed to establish WebSocket connection');
+      console.error('Error creating WebSocket connection:', err);
+      // Attempt to reconnect after error
+      reconnectTimeout.current = setTimeout(() => {
+        console.log('Attempting to reconnect after error...');
+        connect();
+      }, 5000);
     }
+  }, [channel]);
 
-    // Cleanup function
+  useEffect(() => {
+    const cleanup = connect();
+
     return () => {
-      if (ws) {
-        ws.close();
+      if (cleanup) cleanup();
+      if (reconnectTimeout.current) {
+        clearTimeout(reconnectTimeout.current);
       }
     };
-  }, [sessionId]);
+  }, [connect]);
 
-  return { realTimeData, error, isConnected };
+  return { lastMessage, socket };
 };
 
-export default useRealTimeUpdates; 
+export default useRealTimeUpdates;

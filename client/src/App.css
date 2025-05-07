@@ -227,3 +227,43 @@ body {
 @-ms-viewport {
   width: device-width;
 }
+
+/* Student Dashboard specific fixes */
+.student-dashboard-container {
+  width: 100vw !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  min-height: 100vh !important;
+}
+
+.student-dashboard-content {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+  padding: 1rem !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+}
+
+.student-dashboard-grid {
+  width: 100% !important;
+  max-width: 1920px !important;
+  margin: 0 auto !important;
+  padding: 0 1rem !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+@media screen and (min-width: 768px) {
+  .student-dashboard-content {
+    padding: 1.5rem !important;
+  }
+  
+  .student-dashboard-grid {
+    padding: 0 1.5rem !important;
+  }
+}
